@@ -1,0 +1,18 @@
+experiment:
+  name: "01_format_comparison"
+  corpus_glob:
+    - "corpus/raw/pdf/*.pdf"
+    - "corpus/raw/docx/*.docx"
+  representations: ["text", "markdown", "html", "dom"]
+
+chunk:
+  strategy: "fixed"
+  chunk_tokens: 512
+  overlap: 50
+
+retrieve:
+  top_k: 5
+
+golden:
+  path: "golden/qa.jsonl"
+  # Each record: { "query": "...", "doc_id": "....", "relevant_chunk_prefix": "docid:representation:" }
