@@ -1,0 +1,46 @@
+# Slack Channel: #engineering
+## Thread: Architecture Decision — Event-Driven vs Request-Response (2024-07-08)
+
+**@sarah-chen** [11:00 AM]
+Following up on last week's architecture review. We need to decide on the communication pattern for the new notification service. Options:
+
+**Option A: Event-Driven (Kafka)**
+- Services emit events → notification-svc consumes and dispatches
+- Pros: Decoupled, buffered, retryable, audit trail
+- Cons: Eventual consistency, harder to debug, infrastructure cost
+
+**Option B: Request-Response (REST/gRPC)**
+- Services call notification-svc directly when they need to send
+- Pros: Synchronous confirmation, simpler debugging, lower latency
+- Cons: Tight coupling, no buffer during outages, retry burden on caller
+
+**@james-wu** [11:10 AM]
+Strong preference for Option A. Notifications are inherently async — the user doesn't need to block on "email sent." Plus event sourcing gives us a complete audit trail of what was sent.
+
+**@alex-kumar** [11:15 AM]
+Agreed on Option A. Security perspective: event-driven means notification-svc doesn't need to be in the critical path. If it goes down, events queue up in Kafka and process when it recovers. No user-facing impact.
+
+**@maria-garcia** [11:20 AM]
+From data team perspective: +1 for events. We can tap into the notification events for analytics without any additional integration work. Already have Kafka consumers set up.
+
+**@james-wu** [11:25 AM]
+One concern: what about time-sensitive notifications? Like "your 2FA code is 123456" — those need to arrive within seconds, not minutes.
+
+**@sarah-chen** [11:28 AM]
+Good point. Proposal: hybrid approach.
+- **Critical path** (2FA, password reset, payment confirmation): Direct gRPC call with 5s timeout
+- **Everything else** (marketing, digest, activity alerts): Event-driven via Kafka
+
+This keeps the Kafka benefits for 95% of notifications while ensuring critical ones aren't delayed.
+
+**@alex-kumar** [11:32 AM]
+I like the hybrid. We could use a `priority` field in the notification request. `priority: critical` → direct call, `priority: standard/low` → Kafka event.
+
+**@james-wu** [11:35 AM]
++1. Let's document this as ADR-047. I'll draft it today and send for review.
+
+**@sarah-chen** [11:38 AM]
+Perfect. Decision: Hybrid approach (event-driven default + direct call for critical). James to write ADR-047. Let's implement in Sprint 24 (starting July 15).
+
+**@maria-garcia** [11:40 AM]
+👍 Will update the data pipeline to consume from the new notification events topic once it's set up.

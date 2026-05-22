@@ -1,0 +1,63 @@
+experiment:
+  name: "02_retrieval_comparison_pageindex"
+  corpus_glob: ["corpus/raw/**/*.txt", "corpus/raw/**/*.md"]
+  representations: ["pageindex"]
+
+chunk:
+  strategy: "fixed"
+  chunk_tokens: 512
+  overlap: 50
+
+retrieve:
+  top_k: 5
+  similarity_threshold: 0.0
+  rerank: false
+  reranker: "none"
+  reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  confidence_threshold: 0.35
+  use_cache: true
+  cache_ttl_seconds: 3600
+  cache_mode: "exact"
+
+golden:
+  path: "./golden/questions.jsonl"
+
+embed:
+  model: "all-MiniLM-L6-v2"
+  device: "cpu"
+
+index:
+  backend: "pageindex"
+  persist_dir: "./out/pageindex"
+
+intent:
+  mode: "hybrid"
+  llm_model: "llama3"
+  simple_threshold: 0.8
+  max_sub_queries: 4
+
+agentic:
+  strategy: "decompose"
+
+generation:
+  mode: "strict_rag"
+  citation_mode: "chunk_id"
+
+confidence:
+  scorer: "composite"
+  fallback_message: "INSUFFICIENT EVIDENCE: confidence too low to answer reliably."
+
+llm:
+  model: "llama3"
+  temperature: 0.0
+  max_tokens: 512
+  provider: "ollama"
+  ollama_base_url: "http://localhost:11434/v1"
+
+benchmark:
+  questions_path: "./golden/questions.jsonl"
+  source_types: ["confluence", "github", "jira", "slack"]
+  max_questions: 50
+
+eval:
+  metrics: ["llm_judge"]

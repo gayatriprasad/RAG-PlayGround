@@ -1,0 +1,44 @@
+# Authentication Service Architecture
+
+## Overview
+The Authentication Service (auth-svc) handles all user authentication and authorization for the Acme Corp platform. It is a stateless microservice deployed on Kubernetes, written in Go 1.21.
+
+## Components
+- **Token Issuer**: Issues JWT access tokens (15-minute TTL) and refresh tokens (7-day TTL).
+- **Identity Provider Proxy**: Supports SAML 2.0 and OIDC for enterprise SSO integration.
+- **RBAC Engine**: Role-based access control with hierarchical permission inheritance.
+- **Session Store**: Redis cluster (3 nodes) for refresh token revocation lists.
+
+## Authentication Flow
+1. User submits credentials to POST /api/v2/auth/login
+2. Credentials validated against identity provider (Okta for enterprise, Cognito for self-serve)
+3. On success, JWT access token + refresh token pair issued
+4. Access token includes user_id, org_id, roles[], and permissions[] claims
+5. Refresh tokens stored in Redis with org-level revocation capability
+
+## Rate Limiting
+- Login attempts: 5 per minute per IP, 20 per minute per account
+- Token refresh: 30 per minute per user
+- After exceeding limits, 429 response with Retry-After header
+
+## Security Considerations
+- All tokens signed with RS256 (2048-bit keys rotated quarterly)
+- Refresh tokens are opaque, stored server-side, not in JWT format
+- MFA required for admin roles; optional for standard users
+- Password hashing: Argon2id with memory=64MB, iterations=3, parallelism=4
+
+## Dependencies
+- Redis 7.2 cluster (session store)
+- PostgreSQL 15 (user registry, audit logs)
+- Okta (enterprise SSO)
+- AWS Cognito (self-serve tier)
+- Vault (key management, secret rotation)
+
+## SLA
+- p99 latency: <200ms for token validation
+- p99 latency: <500ms for login flow
+- Availability target: 99.95%
+
+## Team
+Owner: Platform Security Team (Slack: #platform-security)
+On-call: Rotates weekly, escalation via PagerDuty

@@ -1,0 +1,74 @@
+# CI/CD Pipeline Configuration
+
+## Repository: acme-corp/platform (mono-repo)
+
+## Pipeline Stages
+
+### Stage 1: Lint & Format
+- **Go services**: `golangci-lint run ./...` (config: `.golangci.yml`)
+- **TypeScript**: `eslint --max-warnings 0` + `prettier --check`
+- **Python**: `ruff check .` + `ruff format --check .`
+- **Duration**: ~2 minutes
+- **Fail fast**: Yes (blocks all subsequent stages)
+
+### Stage 2: Unit Tests
+- **Go**: `go test ./... -race -count=1 -coverprofile=cover.out`
+- **TypeScript**: `vitest run --coverage`
+- **Python**: `pytest --cov --cov-fail-under=80`
+- **Duration**: ~8 minutes (parallelized across 4 runners)
+- **Coverage requirement**: 80% for new code, 70% overall
+
+### Stage 3: Integration Tests
+- **Spins up**: PostgreSQL, Redis, Kafka, Elasticsearch (via docker compose)
+- **Runs**: `make integration-test`
+- **Duration**: ~12 minutes
+- **Only on**: PRs to main, release branches
+
+### Stage 4: Security Scan
+- **SAST**: Semgrep (custom rules in `.semgrep/`)
+- **Dependencies**: `govulncheck` (Go), `npm audit` (TS), `pip-audit` (Python)
+- **Container**: Trivy scan on built images
+- **Secrets**: TruffleHog scan for leaked credentials
+- **Duration**: ~5 minutes
+- **Blocking**: Critical/High findings block merge
+
+### Stage 5: Build & Push
+- **Docker images**: Built with multi-stage Dockerfile, pushed to ECR
+- **Tagging**: `sha-<commit>` for PRs, `v<semver>` for releases
+- **Caching**: Docker layer caching via BuildKit
+- **Duration**: ~4 minutes per service
+
+### Stage 6: Deploy to Staging
+- **Trigger**: Merge to main
+- **Method**: ArgoCD sync (GitOps)
+- **Verification**: Smoke tests run post-deploy
+- **Rollback**: Automatic if smoke tests fail
+
+### Stage 7: Production Deploy
+- **Trigger**: Manual approval in ArgoCD UI
+- **Requirements**: Staging smoke tests passed, minimum 2 hours bake time
+- **Strategy**: Rolling update (maxSurge=25%, maxUnavailable=0)
+- **Canary**: 10% traffic for 15 minutes before full rollout
+- **Rollback**: One-click in ArgoCD, automatic if error rate >1%
+
+## GitHub Actions Workflows
+| Workflow | Trigger | Duration | Runners |
+|----------|---------|----------|---------|
+| ci.yml | PR opened/updated | 15 min | ubuntu-latest (4x) |
+| deploy-staging.yml | Merge to main | 8 min | self-hosted |
+| deploy-prod.yml | Manual dispatch | 12 min | self-hosted |
+| security-scan.yml | Daily 02:00 UTC | 10 min | ubuntu-latest |
+| dependency-update.yml | Weekly Monday | 5 min | ubuntu-latest |
+
+## Branch Protection Rules (main)
+- Require 2 approving reviews
+- Require CI status checks to pass
+- Require branches to be up to date
+- No force pushes
+- No deletions
+- Require signed commits
+
+## Secrets Management
+- Secrets stored in GitHub Actions secrets (org-level)
+- Production secrets in AWS Secrets Manager (accessed via OIDC)
+- Never hardcode secrets — fail CI if TruffleHog detects

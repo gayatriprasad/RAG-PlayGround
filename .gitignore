@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+
+# Node
+node_modules/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project outputs (regeneratable)
+rag-lab/out/
+rag-lab/.venv/
+out/
+
+# ChromaDB persistent storage (large, regeneratable)
+rag-lab/out/chroma/
+
+# Large binary corpus files (optional — uncomment if repo should stay lean)
+# rag-lab/corpus/raw/pdf/*.pdf
+# rag-lab/corpus/raw/docx/*.docx
+
+# Env
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+
+# Cache
+.cache/
+diskcache/

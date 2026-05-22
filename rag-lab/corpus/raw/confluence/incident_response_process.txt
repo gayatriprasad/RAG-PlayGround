@@ -1,0 +1,86 @@
+# Incident Response Process
+
+## Severity Levels
+
+### SEV-1 (Critical)
+- Complete service outage affecting >50% of users
+- Data breach or security compromise
+- Revenue-impacting failure (payments, billing)
+- Response time: 5 minutes to acknowledge, 15 minutes to war room
+
+### SEV-2 (High)
+- Partial outage or severe degradation
+- Single critical service down with workaround available
+- Data integrity issue (not breach)
+- Response time: 15 minutes to acknowledge, 30 minutes to investigation
+
+### SEV-3 (Medium)
+- Minor feature degradation
+- Non-critical service issue
+- Performance degradation within SLA but trending wrong
+- Response time: 1 hour to acknowledge, 4 hours to investigation
+
+## Incident Workflow
+
+### 1. Detection
+- Automated: PagerDuty alert from Datadog monitors
+- Manual: Anyone can declare via `/incident` Slack command in #incidents
+
+### 2. Triage
+- On-call engineer assesses severity within 5 minutes
+- Creates incident channel: #inc-YYYY-MM-DD-short-description
+- Posts initial assessment using incident template
+
+### 3. Response
+- SEV-1/SEV-2: Incident Commander (IC) assigned (senior on-call)
+- IC coordinates response, delegates tasks, manages communications
+- Status updates every 15 minutes (SEV-1) or 30 minutes (SEV-2)
+- Customer-facing status page updated within 10 minutes of confirmation
+
+### 4. Resolution
+- Fix deployed and verified
+- Monitoring confirms recovery
+- All-clear posted to incident channel
+- Status page updated to "Resolved"
+
+### 5. Post-Incident
+- Blameless post-mortem within 48 hours (SEV-1/SEV-2)
+- Post-mortem within 1 week (SEV-3)
+- Template: docs.internal.acme.com/templates/postmortem
+- Action items tracked in JIRA project INCIDENT
+- Post-mortem shared in #engineering and archived in Confluence
+
+## Communication Templates
+
+### Internal Update
+```
+🚨 [SEV-X] [Service Name] — [Brief Description]
+Status: Investigating / Identified / Monitoring / Resolved
+Impact: [Who is affected and how]
+Next update: [Time]
+IC: [Name]
+```
+
+### External Status Page
+```
+[Investigating/Identified/Monitoring/Resolved]: [Service Name]
+We are aware of issues affecting [description].
+[X]% of users may experience [impact].
+We are actively working on a resolution.
+Next update in [X] minutes.
+```
+
+## Escalation Path
+1. On-call engineer (immediate)
+2. Engineering Manager (15 min no response)
+3. Director of Engineering (30 min SEV-1)
+4. VP Engineering (1 hour unresolved SEV-1)
+5. CTO (2 hours unresolved SEV-1)
+
+## Tools
+- PagerDuty: alerting and on-call schedules
+- Datadog: monitoring and dashboards
+- Slack: coordination (#incidents, incident channels)
+- StatusPage: external communication
+- JIRA: action item tracking
+- Confluence: post-mortem storage

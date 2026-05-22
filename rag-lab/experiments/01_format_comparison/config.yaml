@@ -1,9 +1,10 @@
 experiment:
   name: "01_format_comparison"
   corpus_glob:
-    - "corpus/raw/pdf/*.pdf"
-    - "corpus/raw/docx/*.docx"
-  representations: ["text", "markdown", "html", "dom"]
+    - "corpus/raw/confluence/*.txt"
+    - "corpus/raw/github/*.txt"
+    - "corpus/raw/slack/*.txt"
+  representations: ["text"]
 
 chunk:
   strategy: "fixed"
@@ -12,7 +13,22 @@ chunk:
 
 retrieve:
   top_k: 5
+  rerank: false
+  confidence_threshold: 0.15
+
+intent:
+  mode: "hybrid"
+  llm_model: "llama3"
+
+llm:
+  provider: "ollama"
+  model: "llama3"
+  ollama_base_url: "http://localhost:11434/v1"
 
 golden:
-  path: "golden/qa.jsonl"
-  # Each record: { "query": "...", "doc_id": "....", "relevant_chunk_prefix": "docid:representation:" }
+  path: "golden/questions.jsonl"
+
+benchmark:
+  questions_path: "golden/questions.jsonl"
+  source_types: ["confluence", "github", "slack"]
+  max_questions: 20

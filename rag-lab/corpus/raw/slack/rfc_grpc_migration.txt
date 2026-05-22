@@ -1,0 +1,50 @@
+# Slack Channel: #engineering
+## Thread: RFC Discussion — Migrating to gRPC (2024-06-20)
+
+**@james-wu** [10:30 AM]
+Hey team, I've been drafting an RFC for migrating inter-service communication from REST to gRPC. Main motivations:
+- Type safety with protobuf contracts
+- 2-3x faster serialization
+- Streaming support for real-time features
+- Auto-generated client SDKs
+
+Draft RFC: docs.internal.acme.com/rfc/RFC-042-grpc-migration
+
+**@sarah-chen** [10:45 AM]
+Interesting. What about our public-facing APIs? Keeping REST there?
+
+**@james-wu** [10:48 AM]
+Yes — proposal is gRPC for internal service-to-service only. Public APIs stay REST with OpenAPI spec. We'd add gRPC-gateway for services that need both.
+
+**@maria-garcia** [11:02 AM]
+Question: how does this interact with our existing tracing/middleware? We just rolled out OpenTelemetry and all our middleware is HTTP-based.
+
+**@alex-kumar** [11:15 AM]
+Good point. OpenTelemetry has first-class gRPC support via interceptors. I already have a working implementation in the tracing PR (#1356). It's actually cleaner than the HTTP middleware — single interceptor handles both unary and streaming.
+
+**@james-wu** [11:20 AM]
+That's great. The proposal includes a migration plan:
+Phase 1: New services use gRPC by default (starting Q3)
+Phase 2: High-traffic internal paths migrate (search→indexer, auth→user-svc)
+Phase 3: Remaining services migrate opportunistically
+
+Timeline: 6 months for Phase 1+2.
+
+**@sarah-chen** [11:32 AM]
+What's the learning curve concern? Not everyone on the team has gRPC experience.
+
+**@james-wu** [11:35 AM]
+Fair point. Proposal includes:
+- 2-hour workshop (I'll run it)
+- Template service with gRPC boilerplate
+- Protobuf style guide in engineering handbook
+- First 3 services get extra review from core team
+
+**@maria-garcia** [11:40 AM]
+I'm supportive. The type safety alone would have caught that schema drift issue we had last month. Let's discuss in architecture review Thursday.
+
+**@alex-kumar** [11:42 AM]
++1 from me. The OTel interceptors are much cleaner than HTTP middleware. Happy to help with the tracing integration piece.
+
+**@james-wu** [11:45 AM]
+Great. I'll put it on the Architecture Review Board agenda for Thursday 2 PM. Please review the RFC before then.

@@ -1,0 +1,51 @@
+# Data Pipeline Runbook
+
+## Overview
+The core data pipeline ingests events from 12 upstream services, transforms them, and loads into the analytics data warehouse (BigQuery). Pipeline orchestrated by Apache Airflow 2.7.
+
+## Architecture
+- **Ingestion Layer**: Kafka consumers (8 partitions per topic) read from event bus
+- **Transform Layer**: Apache Spark 3.5 jobs on Dataproc (auto-scaling 2-20 nodes)
+- **Load Layer**: BigQuery streaming inserts for real-time; batch load for backfills
+- **Monitoring**: Datadog dashboards + PagerDuty alerts
+
+## Key DAGs
+| DAG Name | Schedule | SLA | Owner |
+|----------|----------|-----|-------|
+| events_hourly | @hourly | 45 min | Data Eng |
+| user_profiles_daily | 02:00 UTC | 4 hours | Data Eng |
+| revenue_reporting | 06:00 UTC | 2 hours | Finance Eng |
+| ml_features_daily | 04:00 UTC | 3 hours | ML Platform |
+
+## Common Failure Modes
+
+### Kafka Consumer Lag
+**Symptoms**: Consumer lag > 100K messages, dashboard shows stale data
+**Root Cause**: Usually Spark executor OOM or schema change in upstream
+**Resolution**:
+1. Check Datadog dashboard "Pipeline Health"
+2. Verify Spark executor memory: `kubectl get pods -n data-pipeline`
+3. If OOM, increase executor memory in spark-defaults.conf (current: 8GB, max: 16GB)
+4. If schema change, update Avro schema registry and redeploy consumer
+
+### BigQuery Load Failures
+**Symptoms**: Airflow task marked FAILED, BigQuery job shows QUOTA_EXCEEDED
+**Root Cause**: Streaming insert quota exceeded (500K rows/sec per table)
+**Resolution**:
+1. Switch to batch mode: set `load_mode=batch` in DAG config
+2. Enable table sharding for high-volume tables
+3. Contact GCP support if sustained quota issues
+
+### Data Quality Alerts
+**Symptoms**: Great Expectations validation fails, Slack alert in #data-quality
+**Root Cause**: Null values exceeding threshold, duplicate records, schema drift
+**Resolution**:
+1. Check Great Expectations report: `gs://acme-data-quality/reports/latest`
+2. Identify source system generating bad data
+3. Apply dead-letter queue pattern — isolate bad records, continue pipeline
+4. File JIRA ticket against source team with data samples
+
+## Contacts
+- Data Engineering: #data-engineering (Slack)
+- On-call: data-eng-oncall@acme.com
+- Escalation: VP Engineering after 2-hour SLA breach

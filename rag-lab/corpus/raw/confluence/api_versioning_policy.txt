@@ -1,0 +1,49 @@
+# API Versioning Policy
+
+## Policy Statement
+All public-facing APIs at Acme Corp follow semantic versioning with URL-based major version prefixes. This policy was ratified by the Architecture Review Board on 2024-03-15.
+
+## Versioning Strategy
+- Major versions in URL path: `/api/v1/`, `/api/v2/`
+- Minor/patch versions communicated via `X-API-Version` response header
+- Maximum 2 major versions supported simultaneously
+- Minimum 12-month deprecation window before sunsetting a major version
+
+## Breaking Changes (require major version bump)
+- Removing or renaming a field from response
+- Changing field type (e.g., string → integer)
+- Removing an endpoint
+- Changing authentication mechanism
+- Altering error response structure
+
+## Non-Breaking Changes (minor/patch)
+- Adding new optional fields to response
+- Adding new endpoints
+- Adding new optional query parameters
+- Improving error messages (without structural changes)
+- Performance improvements
+
+## Deprecation Process
+1. **Announce**: Post to #api-announcements Slack channel + email to api-consumers@acme.com
+2. **Document**: Update API docs with deprecation notice, sunset date, and migration guide
+3. **Warn**: Add `Sunset` header and `Deprecation` header to responses (RFC 8594)
+4. **Monitor**: Track usage of deprecated version via Datadog
+5. **Migrate**: Provide client SDKs with backward-compatible upgrade path
+6. **Sunset**: Remove version after deprecation window + 0 active consumers
+
+## Client SDK Strategy
+- Official SDKs: Python, TypeScript, Go, Java
+- SDKs auto-generated from OpenAPI spec using openapi-generator
+- SDK versions pinned to API major version
+- Breaking SDK changes require coordinated release with API team
+
+## Current API Versions
+| Service | Current | Deprecated | Sunset Date |
+|---------|---------|------------|-------------|
+| Auth | v2 | v1 | 2024-09-01 |
+| Users | v3 | v2 | 2025-01-15 |
+| Billing | v1 | — | — |
+| Analytics | v2 | v1 | 2024-12-01 |
+
+## Owner
+Architecture Review Board (Slack: #architecture)

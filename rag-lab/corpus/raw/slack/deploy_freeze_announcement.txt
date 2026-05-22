@@ -1,0 +1,48 @@
+# Slack Channel: #engineering
+## Thread: Production Deploy Freeze — Holiday Code Freeze (2024-07-18)
+
+**@sarah-chen** [09:00 AM]
+📢 Reminder: Production code freeze begins **Friday July 19 at 5 PM UTC** and ends **Monday July 29 at 9 AM UTC** (company summer retreat week).
+
+Rules during freeze:
+- No production deployments (staging OK)
+- Emergency hotfixes require VP Engineering approval
+- On-call still active — runbooks should cover all scenarios
+- Monitoring thresholds tightened (alert sooner)
+
+**@james-wu** [09:05 AM]
+Got it. I'll make sure the gRPC RFC doesn't land anything to prod before the freeze. We're staging-only next week anyway.
+
+**@alex-kumar** [09:08 AM]
+Quick question: does the freeze apply to feature flag changes? I have a gradual rollout at 50% that I'd like to push to 100% before the freeze.
+
+**@sarah-chen** [09:12 AM]
+Feature flag percentage increases are OK before the freeze starts. But no new flags going live during freeze. If your 50→100% rollout is stable, go ahead and do it today/tomorrow.
+
+**@maria-garcia** [09:15 AM]
+What about the daily ML feature materialization DAGs? Those deploy data, not code.
+
+**@sarah-chen** [09:18 AM]
+Data pipeline DAGs continue as normal — those are operational, not code changes. If a DAG needs a code change to fix a failure during freeze, that counts as a hotfix and needs approval.
+
+**@alex-kumar** [09:20 AM]
+Understood. I'll push the flag to 100% today after confirming metrics look good. Also double-checking our on-call runbooks are up to date before the freeze.
+
+**@sarah-chen** [09:22 AM]
+Great. Please ensure:
+- [ ] Runbooks reviewed and updated
+- [ ] On-call handoff documented
+- [ ] Emergency contact list current
+- [ ] Rollback procedures tested
+- [ ] Monitoring dashboards bookmarked
+
+Team leads: confirm completion by EOD Thursday in this thread. Thanks!
+
+**@james-wu** [09:25 AM]
+Platform team: ✅ will confirm by EOD Thursday.
+
+**@maria-garcia** [09:27 AM]
+Data eng team: ✅ will confirm.
+
+**@alex-kumar** [09:28 AM]
+Security team: ✅ will confirm.

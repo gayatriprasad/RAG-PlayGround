@@ -1,0 +1,57 @@
+# Pull Request: Add Distributed Tracing with OpenTelemetry
+
+**PR #1356** | Author: @alex-kumar | Branch: `alex/PLAT-923-otel-tracing`
+**Status**: Merged | **Merged**: 2024-07-10 | **Reviewers**: @sarah-chen, @james-wu
+
+## Description
+Implements distributed tracing across all backend services using OpenTelemetry SDK. Traces exported to Jaeger for visualization and Datadog for correlation with existing metrics.
+
+## Changes
+- Added `pkg/observability/tracing.go` — OTel tracer initialization
+- Added `pkg/middleware/tracing.go` — HTTP middleware for span creation
+- Added `pkg/grpc/interceptors/tracing.go` — gRPC interceptor
+- Modified all service `main.go` files — initialize tracer on startup
+- Added `deploy/otel-collector.yaml` — collector sidecar config
+
+## Configuration
+```yaml
+tracing:
+  enabled: true
+  service_name: "${SERVICE_NAME}"
+  exporter: otlp
+  endpoint: "otel-collector:4317"
+  sample_rate: 0.1  # 10% in production
+  propagation: ["tracecontext", "baggage"]
+```
+
+## What Gets Traced
+- All HTTP requests (method, path, status, duration)
+- All gRPC calls (method, status, duration)
+- Database queries (query type, duration, rows affected)
+- Redis operations (command, key pattern, duration)
+- Kafka produce/consume (topic, partition, offset)
+- External API calls (Stripe, SendGrid, etc.)
+
+## Span Attributes
+Standard attributes on every span:
+- `service.name`, `service.version`
+- `deployment.environment` (staging/production)
+- `user.id`, `org.id` (from auth context)
+- `http.method`, `http.route`, `http.status_code`
+
+## Performance Impact
+- CPU overhead: <2% at 10% sample rate
+- Memory overhead: ~15MB per service for span buffer
+- Network: ~50KB/s per service to collector
+- No latency impact on hot path (async export)
+
+## Testing
+- Integration test: verified trace propagation across 4 services
+- Load test: confirmed <2% overhead at production traffic
+- Jaeger UI: verified trace visualization with 20+ spans per request
+- Datadog: confirmed trace-metric correlation working
+
+## Follow-up
+- PLAT-930: Add custom business spans (payment flow, search pipeline)
+- PLAT-931: Set up trace-based alerting in Datadog
+- PLAT-932: Create trace analysis dashboard for latency debugging

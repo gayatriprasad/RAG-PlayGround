@@ -1,0 +1,59 @@
+# Database Migration Guide
+
+## Overview
+All schema changes to production databases must follow this migration process. We use Flyway for PostgreSQL migrations and Liquibase for the legacy Oracle database.
+
+## Migration Tools
+- **PostgreSQL**: Flyway 9.x — migrations in `db/migrations/` directory
+- **Oracle** (legacy): Liquibase 4.x — changelogs in `db/oracle/changelog/`
+- **MongoDB**: Custom migration scripts in `db/mongo-migrations/`
+
+## Process
+
+### Step 1: Write Migration
+- Naming convention: `V{version}__{description}.sql` (e.g., `V042__add_user_preferences_table.sql`)
+- Always include both UP and DOWN migration
+- Never modify an existing migration file that has been applied
+- Maximum 1 DDL statement per migration for PostgreSQL (transactional DDL)
+
+### Step 2: Review
+- All migrations require DBA team review (add `dba-review` label on PR)
+- Reviewer checks: locking implications, index strategy, backward compatibility
+- Large table alterations (>1M rows) require off-hours deployment window
+
+### Step 3: Test
+- Migrations auto-run against ephemeral database in CI
+- Load testing for migrations affecting tables >10M rows
+- Rollback verification: DOWN migration must cleanly reverse
+
+### Step 4: Deploy
+- Staging first, minimum 24-hour bake time
+- Production: applied during deployment via Flyway migrate command
+- Zero-downtime requirement: use expand-contract pattern for breaking changes
+
+## Expand-Contract Pattern
+For backward-compatible schema changes:
+1. **Expand**: Add new column/table, dual-write to old and new
+2. **Migrate**: Backfill new column from old data
+3. **Switch**: Update application to read from new column
+4. **Contract**: Remove old column after verification period (minimum 7 days)
+
+## Current Database Inventory
+| Database | Engine | Size | Tables | Owner |
+|----------|--------|------|--------|-------|
+| users_db | PostgreSQL 15 | 2.1 TB | 47 | Platform |
+| billing_db | PostgreSQL 15 | 890 GB | 23 | Payments |
+| analytics_db | BigQuery | 45 TB | 180 | Data Eng |
+| legacy_crm | Oracle 19c | 500 GB | 312 | CRM Team |
+| sessions_db | Redis 7.2 | 64 GB | — | Platform |
+
+## Emergency Procedures
+- **Rollback**: `flyway undo -target=<version>` (requires undo migrations)
+- **Lock issues**: Check `pg_stat_activity` for blocking queries, use `pg_terminate_backend()`
+- **Replication lag**: Pause writes, let replicas catch up, resume
+- **DBA On-call**: #dba-support Slack channel, PagerDuty for after-hours
+
+## Contacts
+- DBA Team: #dba-support
+- Schema review: dba-review@acme.com
+- Emergency: PagerDuty service "Database Operations"

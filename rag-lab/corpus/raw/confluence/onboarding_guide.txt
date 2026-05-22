@@ -1,0 +1,63 @@
+# New Engineer Onboarding Guide
+
+## Welcome to Acme Corp!
+
+This guide covers your first two weeks at Acme. By the end, you'll have all access, a working dev environment, and have shipped your first PR.
+
+## Week 1: Setup & Access
+
+### Day 1 — Accounts & Access
+1. Activate your Okta account (check personal email for invite)
+2. Set up MFA using the Okta Verify app (required before any system access)
+3. Join mandatory Slack channels: #engineering, #general, #incidents, #your-team
+4. Request AWS access via ServiceNow ticket (template: "New Eng AWS Access")
+5. Clone the mono-repo: `git clone git@github.com:acme-corp/platform.git`
+
+### Day 2 — Dev Environment
+1. Install tools via bootstrap script: `./scripts/setup-dev.sh`
+   - Required: Docker Desktop, Go 1.21+, Node 20 LTS, Python 3.11+
+   - Optional: Tilt (for local k8s), k9s (cluster management)
+2. Start local services: `docker compose up -d` (runs Postgres, Redis, Kafka)
+3. Run test suite: `make test-all` — expect ~12 min on M-series Mac
+4. Verify API access: `curl http://localhost:8080/health`
+
+### Day 3-5 — Codebase Orientation
+- Read Architecture Decision Records (ADRs) in /docs/adr/
+- Review your team's service READMEs
+- Pair with your onboarding buddy for code walkthrough
+- Complete "Intro to Acme Platform" training in LMS
+
+## Week 2: First Contribution
+
+### Your First PR
+1. Pick a "good-first-issue" ticket from your team's JIRA board
+2. Create branch: `git checkout -b <username>/<ticket-id>-short-description`
+3. Make changes, add tests (minimum 80% coverage for new code)
+4. Run linter: `make lint` — must pass before PR
+5. Open PR with template (auto-populated)
+6. Tag your onboarding buddy + one senior engineer as reviewers
+7. After approval, squash-merge to main
+
+### CI/CD Pipeline
+- PRs trigger: lint → unit tests → integration tests → security scan
+- Merge to main triggers: build → deploy to staging → smoke tests
+- Production deploy: requires manual approval in ArgoCD after staging passes
+
+### Key Policies
+- All code changes require at least 2 approvals
+- Security-sensitive changes require AppSec team review
+- Database migrations require DBA sign-off
+- Feature flags required for all user-facing changes (LaunchDarkly)
+
+## Useful Links
+- Mono-repo: github.com/acme-corp/platform
+- Internal docs: docs.internal.acme.com
+- CI Dashboard: argocd.internal.acme.com
+- Feature flags: app.launchdarkly.com/acme
+- On-call schedule: pagerduty.com/schedules/acme-eng
+
+## Contacts
+- Your manager will assign an onboarding buddy
+- HR questions: people-ops@acme.com
+- IT/Access issues: #it-help on Slack
+- Engineering questions: #engineering on Slack

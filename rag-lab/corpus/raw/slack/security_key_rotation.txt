@@ -1,0 +1,47 @@
+# Slack Channel: #platform-security
+## Thread: Quarterly Key Rotation Completed (2024-07-01)
+
+**@security-bot** [06:00 AM]
+🔑 Scheduled quarterly key rotation initiated for Q3 2024.
+
+**@alex-kumar** [06:05 AM]
+Starting rotation for auth-service JWT signing keys. Process:
+1. Generate new RS256 key pair in Vault
+2. Add new public key to JWKS endpoint (both old + new active)
+3. Switch signing to new private key
+4. Old key remains valid for token TTL (7 days for refresh tokens)
+5. Remove old key after grace period
+
+**@alex-kumar** [06:15 AM]
+Step 1 complete — new key generated in Vault path `secret/auth/jwt/2024-q3`
+
+**@alex-kumar** [06:18 AM]
+Step 2 complete — JWKS endpoint now serves both keys. Verified: `curl https://auth.acme.com/.well-known/jwks.json | jq '.keys | length'` → 2
+
+**@alex-kumar** [06:22 AM]
+Step 3 complete — auth-service restarted with new signing key. New tokens signed with kid=`2024-q3`. Old tokens (kid=`2024-q2`) still validate correctly.
+
+**@sarah-chen** [06:25 AM]
+Confirmed — my test client received a token with the new kid. Validated successfully.
+
+**@alex-kumar** [06:28 AM]
+✅ Rotation successful. Timeline for cleanup:
+- Now → July 8: Both keys active (grace period for refresh tokens)
+- July 8: Remove old public key from JWKS
+- July 8: Archive old key in Vault (retain for audit, mark inactive)
+
+**@security-bot** [06:30 AM]
+🔑 Additional rotations completed:
+- Stripe API keys: rotated ✅
+- SendGrid API key: rotated ✅
+- Datadog API key: rotated ✅
+- Database credentials (users_db): rotated ✅
+- Redis AUTH password: rotated ✅
+
+All services verified healthy after credential rotation.
+
+**@alex-kumar** [06:35 AM]
+Full rotation complete. All services healthy. Monitoring dashboards confirm no auth failures. Setting calendar reminder for old JWT key removal on July 8.
+
+**@sarah-chen** [06:38 AM]
+Perfect execution. Thanks Alex! The automation on the non-JWT creds is saving us so much time compared to last quarter's manual process.

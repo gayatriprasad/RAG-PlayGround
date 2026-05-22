@@ -1,0 +1,41 @@
+# Slack Channel: #data-engineering
+## Thread: Feature Store Latency Spike Investigation (2024-07-12)
+
+**@monitoring-bot** [14:05 PM]
+⚠️ Alert: ML Feature Store online serving p99 latency exceeded 50ms threshold. Current: 82ms.
+
+**@maria-garcia** [14:08 PM]
+Looking into it. Checking Redis cluster health first.
+
+**@maria-garcia** [14:12 PM]
+Redis cluster looks fine — memory usage normal, no evictions. Let me check what's different about the queries.
+
+**@maria-garcia** [14:18 PM]
+Found it. The recommendation model team pushed a new feature set today that's requesting 45 features in a single `get_online_features()` call. Previous max was 12 features per call.
+
+```
+2024-07-12 14:00:01 [WARN] Large feature request: user_id=usr-789, feature_count=45, latency_ms=89
+2024-07-12 14:00:02 [WARN] Large feature request: user_id=usr-456, feature_count=45, latency_ms=78
+```
+
+**@james-wu** [14:22 PM]
+45 features in one call? That's going to be 45 HGET operations even with pipeline. Should we batch these differently?
+
+**@maria-garcia** [14:25 PM]
+Yes. Two options:
+1. Use Redis MGET with a composite key (pack features into single hash)
+2. Add a "feature group" concept — pre-compute common combinations
+
+I think option 2 is better long-term. For now, I'll enable Redis pipeline mode for >10 features.
+
+**@maria-garcia** [14:40 PM]
+Deployed pipeline mode. Latency for 45-feature requests dropped from 82ms to 18ms. Overall p99 back to 9ms.
+
+**@james-wu** [14:42 PM]
+Nice. That's a solid fix. Should we add a lint rule for feature request size?
+
+**@maria-garcia** [14:45 PM]
+Good idea. I'll add a warning in the SDK when requesting >20 features without using batch mode. Also filing a ticket for the feature group concept — that'll help the rec team long-term.
+
+**@monitoring-bot** [14:50 PM]
+✅ Alert resolved: ML Feature Store online serving p99 latency back to normal (9ms).

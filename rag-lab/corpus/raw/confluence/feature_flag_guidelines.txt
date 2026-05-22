@@ -1,0 +1,63 @@
+# Feature Flag Guidelines
+
+## Platform
+We use LaunchDarkly for feature flag management across all services. All user-facing changes MUST be behind a feature flag.
+
+## Flag Types
+
+### Release Flags
+- Purpose: Decouple deployment from release
+- Lifecycle: Short-lived (remove within 2 sprints of full rollout)
+- Naming: `release-<team>-<feature>` (e.g., `release-payments-new-checkout`)
+- Default: OFF in production until explicitly enabled
+
+### Experiment Flags
+- Purpose: A/B testing and gradual rollouts
+- Lifecycle: Duration of experiment (typically 2-4 weeks)
+- Naming: `exp-<team>-<hypothesis>` (e.g., `exp-growth-signup-cta-v2`)
+- Targeting: Percentage-based rollout with user bucketing
+
+### Operational Flags (Kill Switches)
+- Purpose: Quickly disable features during incidents
+- Lifecycle: Permanent
+- Naming: `ops-<service>-<capability>` (e.g., `ops-search-ml-ranking`)
+- Default: ON (feature enabled); turn OFF to disable
+
+### Permission Flags
+- Purpose: Gating features for specific customers/tiers
+- Lifecycle: Permanent until product decision changes
+- Naming: `perm-<feature>-<tier>` (e.g., `perm-advanced-analytics-enterprise`)
+- Targeting: Customer segment or plan-based
+
+## Best Practices
+1. **One flag per feature** — don't combine unrelated changes
+2. **Clean up promptly** — stale flags are tech debt (>90 days = auto-ticket)
+3. **Test both states** — CI must test with flag ON and flag OFF
+4. **Document in PR** — include flag name, purpose, rollout plan
+5. **Fallback safe** — flag OFF should always be the safe/previous state
+6. **No nested flags** — never make one flag depend on another
+
+## Rollout Process
+1. Deploy code behind flag (flag OFF in prod)
+2. Enable in staging, verify
+3. Enable for internal users (Acme employees)
+4. Gradual rollout: 5% → 25% → 50% → 100%
+5. Monitor metrics at each stage (minimum 4 hours per stage)
+6. Full rollout → remove flag code within 2 sprints
+
+## Monitoring Integration
+- Each flag change emits event to Datadog
+- Dashboard: "Feature Flag Health" in Datadog
+- Alert if flag evaluation errors > 0.1%
+- Audit log: LaunchDarkly maintains full change history
+
+## Emergency Kill Switch Usage
+During incidents:
+1. Identify problematic feature in incident channel
+2. Toggle operational flag OFF via LaunchDarkly UI or API
+3. Verify recovery
+4. Document in post-mortem
+
+## Owner
+Developer Experience Team (Slack: #dev-experience)
+LaunchDarkly admin: platform-eng@acme.com

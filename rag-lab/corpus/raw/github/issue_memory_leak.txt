@@ -1,0 +1,53 @@
+# Issue: Memory Leak in Search Service After ES 8.11 Upgrade
+
+**Issue #1401** | Reporter: @maria-garcia | Priority: P2
+**Status**: Closed (Fixed) | **Resolution**: 2024-07-18
+**Labels**: bug, performance, search-service
+
+## Description
+After upgrading Elasticsearch client to 8.11, the search service exhibits a slow memory leak. RSS grows ~200MB/hour until OOM kill at 4GB limit.
+
+## Symptoms
+- Memory grows linearly regardless of traffic
+- OOM kills every ~18 hours in production
+- No memory growth observed in staging (lower traffic)
+- Started immediately after deployment of search-svc v2.14.0
+
+## Investigation
+
+### Heap Profile Analysis
+```
+go tool pprof http://search-svc:6060/debug/pprof/heap
+(pprof) top 10
+      flat  flat%   sum%        cum   cum%
+  1.2GB 62.5% 62.5%   1.2GB 62.5%  github.com/elastic/go-elasticsearch/v8/esapi.(*Response).Body
+  200MB 10.4% 72.9%   200MB 10.4%  net/http.(*Transport).dialConnFor
+  150MB  7.8% 80.7%   150MB  7.8%  bufio.NewReaderSize
+```
+
+### Root Cause
+The ES 8.11 client changed response body handling. Response bodies were not being closed after reading in our bulk search handler. The old client auto-closed on GC, but the new version requires explicit `Close()`.
+
+### Fix (PR #1405)
+```go
+// Before (leaks)
+res, err := es.Search(...)
+body := res.Body
+data, _ := io.ReadAll(body)
+
+// After (fixed)
+res, err := es.Search(...)
+defer res.Body.Close()  // Critical!
+data, _ := io.ReadAll(res.Body)
+```
+
+## Verification
+- Memory stable at 1.1GB over 72-hour test in staging
+- No OOM kills in 7 days post-deploy
+- GC pressure reduced 30%
+
+## Action Items
+- [x] Fix response body leak (PR #1405)
+- [x] Add linter rule: require defer Close() for ES responses
+- [ ] Add memory growth alert: >50MB/hour sustained for 2 hours
+- [ ] Document ES 8.11 migration gotchas in wiki

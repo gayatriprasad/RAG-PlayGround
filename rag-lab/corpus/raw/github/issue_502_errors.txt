@@ -1,0 +1,52 @@
+# Issue: Intermittent 502 Errors on /api/v2/users Endpoint
+
+**Issue #1312** | Reporter: @dev-ops-bot | Priority: P1
+**Status**: Closed (Fixed) | **Resolution**: 2024-07-02
+**Labels**: bug, production, p1, user-service
+
+## Description
+Starting 2024-06-28 at 14:22 UTC, we're observing intermittent 502 errors (Bad Gateway) on the `/api/v2/users` endpoint. Error rate spiked from baseline 0.01% to 2.3%.
+
+## Impact
+- Approximately 2.3% of user profile requests failing
+- Downstream impact on dashboard loading (shows blank profile)
+- 47 customer support tickets filed
+
+## Investigation Timeline
+
+### 2024-06-28 14:22 UTC — Alert fired
+- Datadog alert: "502 rate > 1% on user-service" (PagerDuty)
+- On-call: @alex-kumar acknowledged at 14:25
+
+### 2024-06-28 14:30 — Initial investigation
+- Confirmed 502s originating from nginx ingress → user-service
+- user-service pods healthy (3/3 running), no OOM kills
+- CPU: 45%, Memory: 62% — within normal range
+
+### 2024-06-28 15:00 — Root cause identified
+- Connection pool exhaustion to PostgreSQL
+- Max pool size: 25 connections per pod
+- Slow query on `user_preferences` table (new feature deployed 2024-06-27)
+- Query: `SELECT * FROM user_preferences WHERE user_id = $1 AND org_id = $2`
+- Missing index on `(user_id, org_id)` — full table scan on 45M rows
+
+### 2024-06-28 15:15 — Fix applied
+- Added composite index: `CREATE INDEX CONCURRENTLY idx_user_prefs_user_org ON user_preferences(user_id, org_id)`
+- Index creation took 8 minutes (CONCURRENTLY = no locks)
+- Connection pool utilization dropped from 98% to 12%
+- 502 rate returned to baseline (0.01%)
+
+## Root Cause
+PR #1298 (deployed 2024-06-27) added a new query to `user_preferences` table without the required composite index. The query performed a full table scan, holding connections for 3-5 seconds instead of <10ms, eventually exhausting the connection pool.
+
+## Action Items
+- [x] Add composite index (immediate fix)
+- [x] Add query plan review to PR checklist
+- [ ] Implement connection pool monitoring alert (threshold: >80% utilization)
+- [ ] Add automated EXPLAIN ANALYZE check in CI for new queries
+- [ ] Post-mortem document (due 2024-07-05)
+
+## Lessons Learned
+- New queries on large tables MUST include EXPLAIN ANALYZE output in PR
+- Connection pool size should be monitored with alert (not just pod health)
+- Consider using PgBouncer for connection pooling at scale

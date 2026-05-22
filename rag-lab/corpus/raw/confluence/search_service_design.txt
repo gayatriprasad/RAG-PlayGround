@@ -1,0 +1,70 @@
+# Search Service Design Document
+
+## Problem Statement
+Users need full-text search across all platform entities (documents, messages, tickets, contacts). Current implementation uses PostgreSQL LIKE queries which degrade at scale (p99 > 3s at current volume).
+
+## Proposed Solution
+Dedicated search service backed by Elasticsearch 8.11 with hybrid retrieval (BM25 + vector search).
+
+## Architecture
+
+### Indexing Pipeline
+1. Source services emit change events to Kafka topic `search-index-updates`
+2. Search indexer consumes events, transforms into search documents
+3. Documents indexed into Elasticsearch with entity-specific mappings
+4. Reindexing supported via backfill DAG (estimated 4 hours for full corpus)
+
+### Query Pipeline
+1. API gateway routes `/api/v2/search` to search service
+2. Query parser extracts filters, boost signals, entity type
+3. Hybrid search: BM25 text match + kNN vector similarity (RRF fusion)
+4. Results post-processed: permission filtering, snippet generation, highlighting
+5. Response includes facets, total count, pagination cursor
+
+### Vector Component
+- Embeddings: all-MiniLM-L6-v2 (384 dimensions)
+- Stored as dense_vector field in Elasticsearch
+- Used for semantic similarity when text match insufficient
+- Updated asynchronously (eventual consistency, <5 min lag)
+
+## Data Model
+```json
+{
+  "id": "doc-abc123",
+  "entity_type": "document",
+  "title": "Q3 Planning Doc",
+  "content": "Full text content...",
+  "embedding": [0.1, 0.2, ...],  // 384-dim
+  "author_id": "user-xyz",
+  "org_id": "org-acme",
+  "permissions": ["role:engineer", "team:platform"],
+  "created_at": "2024-01-15T10:00:00Z",
+  "updated_at": "2024-06-20T14:30:00Z",
+  "source": "confluence",
+  "tags": ["planning", "engineering"]
+}
+```
+
+## Performance Requirements
+- p50 latency: <100ms
+- p99 latency: <500ms
+- Indexing throughput: 10K documents/second
+- Query throughput: 1000 QPS
+- Index size: ~50M documents (projected 18 months)
+
+## Security
+- All queries filtered by org_id (mandatory, enforced at service layer)
+- Permission filtering: user's roles intersected with document permissions
+- No cross-org data leakage — verified by integration tests
+- PII fields (email, phone) tokenized, not stored in plain text
+
+## Migration Plan
+1. Phase 1: Shadow mode — index all data, compare results with existing search (2 weeks)
+2. Phase 2: Dual-write — new search serves 10% traffic, compare metrics (2 weeks)
+3. Phase 3: Cutover — new search serves 100%, old system read-only (1 week)
+4. Phase 4: Decommission old PostgreSQL search code (2 weeks)
+
+## Team
+Owner: Search & Discovery Team (Slack: #search-team)
+Stakeholders: Product, Platform, Data Engineering
+Timeline: 8 weeks (started 2024-07-01, target completion 2024-08-26)

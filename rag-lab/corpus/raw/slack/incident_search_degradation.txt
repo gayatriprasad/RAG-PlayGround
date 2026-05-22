@@ -1,0 +1,39 @@
+# Slack Channel: #incidents
+## Thread: Search Service Degradation (2024-07-15)
+
+**@alex-kumar** [09:14 AM]
+🚨 Seeing elevated latency on search-service. p99 jumped from 200ms to 1.8s. Investigating.
+
+**@maria-garcia** [09:16 AM]
+I see it too. My team's dashboard is showing slow search results since about 9:10 AM.
+
+**@alex-kumar** [09:18 AM]
+Elasticsearch cluster health is YELLOW. One data node (es-data-03) went unresponsive at 09:08. Cluster is rebalancing shards.
+
+**@sarah-chen** [09:20 AM]
+Any customer impact? Should we update the status page?
+
+**@alex-kumar** [09:22 AM]
+Search still functional but slow. ~3x latency increase. Not a full outage. I'd say we hold off on status page unless it degrades further. Calling it SEV-3 for now.
+
+**@james-wu** [09:25 AM]
+I can see es-data-03 ran out of disk. `/data` partition hit 95% — ES watermark triggered and made it read-only.
+
+**@alex-kumar** [09:27 AM]
+Good find. Plan:
+1. Delete old indices (>90 days) on es-data-03 to free space
+2. Verify shard rebalancing completes
+3. Monitor latency recovery
+4. Long-term: set up disk space alerting at 80%
+
+**@james-wu** [09:32 AM]
+Deleted indices from March. Freed 120GB. es-data-03 now at 68% disk usage.
+
+**@alex-kumar** [09:38 AM]
+Cluster back to GREEN. Latency recovering — p99 now at 450ms and dropping. Should be back to normal within 10 minutes as caches warm.
+
+**@alex-kumar** [09:52 AM]
+All clear. p99 back to 180ms. Creating JIRA ticket for disk space monitoring.
+
+**@sarah-chen** [09:53 AM]
+Thanks team. Great response time. 👏

@@ -1,0 +1,46 @@
+# Slack Channel: #engineering
+## Thread: Post-Mortem Review — Payment Processing Outage (2024-06-25)
+
+**@sarah-chen** [14:00 PM]
+Post-mortem for last week's payment outage is published: docs.internal.acme.com/postmortems/PM-2024-018
+
+Quick summary:
+- **Duration**: 47 minutes (2024-06-18 16:23–17:10 UTC)
+- **Impact**: 100% of payment processing failed, ~$340K in delayed revenue
+- **Root cause**: Stripe webhook endpoint certificate expired, Stripe stopped sending events
+- **Detection**: Alert fired at 16:28 (5 min after start), team engaged by 16:32
+
+**@james-wu** [14:05 PM]
+The 5-minute gap between start and detection — can we improve that?
+
+**@sarah-chen** [14:08 PM]
+Yes, that's action item #2. Currently we alert on "failed payment count > threshold." But we should ALSO alert on "no successful webhooks received in X minutes" — absence-based detection. If Stripe stops sending, we see zero events, not errors.
+
+**@alex-kumar** [14:12 PM]
+The cert expiry is the embarrassing part. We have cert monitoring for our public endpoints but didn't cover the webhook receiver endpoint. It's on a separate cert from a different CA.
+
+**@sarah-chen** [14:15 PM]
+Exactly. Action items from the post-mortem:
+1. ✅ Renewed certificate (immediate fix)
+2. 🔲 Add absence-based alerting for webhook events (due July 5)
+3. 🔲 Add ALL internal certificates to cert-manager monitoring (due July 10)
+4. 🔲 Automate cert renewal via cert-manager + Let's Encrypt (due July 30)
+5. 🔲 Add integration test that verifies Stripe webhook TLS handshake (due July 15)
+
+**@maria-garcia** [14:20 PM]
+Was there any data loss from the missed webhooks?
+
+**@sarah-chen** [14:23 PM]
+No data loss. Stripe retries failed webhooks for up to 72 hours with exponential backoff. Once we fixed the cert, all pending events were delivered within 20 minutes. We verified against Stripe's event log — 100% event delivery confirmed.
+
+**@james-wu** [14:25 PM]
+Good. The retry mechanism saved us there. Should we consider a dead-letter queue pattern for webhook processing as additional safety?
+
+**@sarah-chen** [14:28 PM]
+That's a good enhancement. I'll add it as a follow-up item (non-urgent since Stripe's retry handles most failure modes). Let's discuss in next sprint planning.
+
+**@alex-kumar** [14:30 PM]
+I'll take action items #3 and #4 (cert monitoring and automation). Should have a PR up by end of week.
+
+**@sarah-chen** [14:32 PM]
+Thanks Alex. I'll track all items in JIRA project INCIDENT. Let's close this thread and follow up in sprint standup.

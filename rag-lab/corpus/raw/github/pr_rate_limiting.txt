@@ -1,0 +1,49 @@
+# Pull Request: Implement Rate Limiting Middleware
+
+**PR #1247** | Author: @sarah-chen | Branch: `sarah/PLAT-892-rate-limiting`
+**Status**: Merged | **Merged**: 2024-06-15 | **Reviewers**: @james-wu, @alex-kumar
+
+## Description
+Implements configurable rate limiting middleware for all API endpoints. Uses sliding window algorithm backed by Redis.
+
+## Changes
+- Added `pkg/middleware/ratelimit.go` — core rate limiter implementation
+- Added `pkg/middleware/ratelimit_test.go` — unit tests (94% coverage)
+- Modified `cmd/api/server.go` — register middleware in chain
+- Added `configs/ratelimit.yaml` — per-endpoint configuration
+- Updated `docs/api/rate-limiting.md` — public documentation
+
+## Configuration Format
+```yaml
+rate_limits:
+  default:
+    requests_per_minute: 60
+    burst: 10
+  endpoints:
+    /api/v2/auth/login:
+      requests_per_minute: 5
+      burst: 2
+      key: ip
+    /api/v2/search:
+      requests_per_minute: 30
+      burst: 5
+      key: user_id
+    /api/v2/export:
+      requests_per_minute: 2
+      burst: 1
+      key: org_id
+```
+
+## Testing
+- Unit tests: 47 test cases, all passing
+- Integration tests: verified with Redis cluster in staging
+- Load test: 10K req/s sustained for 30 minutes, correct limiting behavior
+- Verified 429 responses include proper `Retry-After` and `X-RateLimit-*` headers
+
+## Reviewer Comments
+**@james-wu**: "Clean implementation. Consider adding per-org overrides for enterprise customers."
+**@alex-kumar**: "LGTM. The sliding window approach handles burst better than fixed window."
+
+## Follow-up
+- PLAT-901: Add per-org rate limit overrides (next sprint)
+- PLAT-902: Datadog dashboard for rate limit metrics

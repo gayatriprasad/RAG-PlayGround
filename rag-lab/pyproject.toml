@@ -12,10 +12,29 @@ dependencies = [
   "pypdf",
   "pdfplumber",
   "python-docx",
+  "huggingface-hub",
+  "datasets",
+  "tiktoken",
+  "spacy",
+  "openai",
+  "chromadb",
+  "sentence-transformers",
+  "rank-bm25",
+  "flashrank",
+  "transformers",
+  "torch",
+  "pandas",
+  "tabulate",
+  "typer",
+  "fastapi",
+  "uvicorn[standard]",
+  "httpx",
+  "diskcache",
+  # "pageindex",  # SKILL 06: May require manual installation from VectifyAI
 ]
 
 [project.scripts]
-raglab-run = "raglab.run_experiment:main"
+raglab-run = "raglab.run_experiment:app"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
