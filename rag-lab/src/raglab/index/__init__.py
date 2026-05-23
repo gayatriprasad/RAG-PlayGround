@@ -9,6 +9,7 @@ from raglab.index.hybrid_rrf import HybridRRFIndex
 from raglab.index.hybrid_weighted import HybridWeightedIndex
 from raglab.index.hybrid_index import HybridIndex  # SKILL 14A
 from raglab.index.pageindex_adapter import PageIndexAdapter  # SKILL 06
+from raglab.index.graph_rag import GraphRAGIndex  # SKILL 17
 
 
 def get_index(cfg, embed_cfg):
@@ -41,10 +42,12 @@ def get_index(cfg, embed_cfg):
             return HybridIndex(cfg, embed_cfg)
         case "pageindex":
             return PageIndexAdapter(cfg)
+        case "graph_rag":
+            return GraphRAGIndex(cfg, embed_cfg)
         case _:
             raise ValueError(
                 f"Unknown index backend: {cfg.backend}. "
-                f"Valid options: 'chroma', 'bm25', 'hybrid_rrf', 'hybrid_weighted', 'hybrid', 'pageindex'"
+                f"Valid options: 'chroma', 'bm25', 'hybrid_rrf', 'hybrid_weighted', 'hybrid', 'pageindex', 'graph_rag'"
             )
 
 

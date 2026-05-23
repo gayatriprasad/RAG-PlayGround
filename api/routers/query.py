@@ -6,7 +6,7 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -27,10 +27,36 @@ from raglab.index import get_index
 from raglab.pipelines import AgenticRAGPipeline, NaiveRAGPipeline
 from raglab.rerankers import get_reranker
 from raglab.types import Question
+from raglab.utils.memory import ConversationMemory
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["query"])
+
+# ─── Session Memory Store ──────────────────────────────────────────────────────
+
+# Global session store: session_id → ConversationMemory
+# In production, this should be Redis or similar persistent storage
+SESSION_MEMORIES: Dict[str, ConversationMemory] = {}
+
+def get_or_create_memory(session_id: Optional[str]) -> Optional[ConversationMemory]:
+    """
+    Get or create conversation memory for a session.
+    
+    Args:
+        session_id: Session identifier (optional)
+        
+    Returns:
+        ConversationMemory instance, or None if no session_id
+    """
+    if not session_id:
+        return None
+    
+    if session_id not in SESSION_MEMORIES:
+        SESSION_MEMORIES[session_id] = ConversationMemory(max_turns=5)
+        logger.info(f"📝 Created new conversation memory for session: {session_id}")
+    
+    return SESSION_MEMORIES[session_id]
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -123,9 +149,20 @@ async def query(req: QueryRequest):
 
         index = get_index(cfg.index, cfg.embed)
         experiment_name = cfg.experiment.name
-
-        # Check index is built
-        if hasattr(index, "is_built") and not index.is_built(experiment_name):
+# If session_id provided, augment query with conversation context
+        memory = get_or_create_memory(req.session_id)
+        query_text = req.question
+        
+        if memory:
+            # Augment query with previous conversation context
+            augmented_query = memory.augment_query(req.question)
+            if augmented_query != req.question:
+                logger.info(f"🧠 Augmented query with {len(memory.turns)} previous turns")
+                query_text = augmented_query
+        
+        question = Question(
+            id="api_query",
+            text=query_text,  # Use augmented query if memory existsbuilt") and not index.is_built(experiment_name):
             raise HTTPException(
                 status_code=400,
                 detail=f"Index not built for experiment '{experiment_name}'. Run the experiment first.",
@@ -158,6 +195,15 @@ async def query(req: QueryRequest):
         )
 
         # Route to pipeline
+    
+    # Add this turn to conversation memory (if session_id provided)
+    if memory:
+        memory.add(
+            question=req.question,  # Store original question, not augmented
+            answer=result.predicted_answer,
+            chunks=result.retrieved_chunks
+        )
+        logger.info(f"💾 Stored turn in memory (total turns: {len(memory.turns)})")
         if intent_response.label == "simple":
             pipeline = NaiveRAGPipeline(index, reranker, cfg)
             result = pipeline.run(question)

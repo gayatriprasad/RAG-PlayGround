@@ -46,7 +46,7 @@ class EmbedCfg(BaseModel):
     device: str = "cpu"
 
 class IndexCfg(BaseModel):
-    backend: Literal["chroma", "pageindex", "bm25", "hybrid_rrf", "hybrid_weighted", "hybrid"] = "chroma"
+    backend: Literal["chroma", "pageindex", "bm25", "hybrid_rrf", "hybrid_weighted", "hybrid", "graph_rag"] = "chroma"
     persist_dir: str = "./out/chroma"
     rrf_k: int = 60
     hybrid_dense_weight: float = 0.7
@@ -79,7 +79,7 @@ class LLMCfg(BaseModel):
     temperature: float = 0.0
     max_tokens: int = 512
     provider: Literal["openai", "ollama"] = "openai"
-    ollama_base_url: str = "http://localhost:11434"
+    ollama_base_url: str = "http://localhost:11434/v1"
 
 class BenchmarkCfg(BaseModel):
     questions_path: str = "./golden/questions.jsonl"

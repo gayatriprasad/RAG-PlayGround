@@ -22,6 +22,7 @@ dependencies = [
   "rank-bm25",
   "flashrank",
   "transformers",
+  "sentencepiece",
   "torch",
   "pandas",
   "tabulate",
@@ -31,6 +32,28 @@ dependencies = [
   "httpx",
   "diskcache",
   # "pageindex",  # SKILL 06: May require manual installation from VectifyAI
+  "networkx",  # SKILL 17: GraphRAG
+]
+
+[project.optional-dependencies]
+# SKILL 15: Multi-agent architecture (optional)
+agents = [
+  "langgraph",
+  "langchain-core"
+]
+
+# SKILL 18: Production observability (optional)
+observability = [
+  "mcp>=0.9.0",
+  "langfuse>=2.0.0"
+]
+
+# All optional features
+all = [
+  "langgraph",
+  "langchain-core",
+  "mcp>=0.9.0",
+  "langfuse>=2.0.0"
 ]
 
 [project.scripts]

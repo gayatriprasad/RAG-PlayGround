@@ -3,19 +3,85 @@
 Run skills sequentially. Each builds on the previous.
 Verify the file exists and tests pass before moving to the next skill.
 
-## SKILL 01 — Types & Config Foundation
+---
 
-Read types.py and config.py from .github/copilot-instructions.md.
-Replace the existing files with the full versions defined there.
-Run:
-```bash
-python -c "from raglab.config import Config; from raglab.types import Document"
+## SKILL 00 — CLAUDE.md Root File
+
+```
+Create CLAUDE.md at repo root. This is the agent memory layer — Claude Code
+and any MCP-compatible agent reads this before touching any file.
+
+Content:
+# RAG-PlayGround
+
+## What this repo is
+A RAG research playground benchmarking retrieval strategies against
+EnterpriseRAG-Bench. Every pipeline step is a swappable slot driven by config.
+
+## Repo map
+- rag-lab/src/raglab/    → core Python library (chunkers, index, pipelines, eval)
+- api/                   → FastAPI backend
+- app/                   → Next.js frontend
+- .github/               → Copilot instructions, skills, hooks, actions
+
+## Rules that never break
+1. Config is truth — no hardcoded paths or model names in source files
+2. types.py is the contract — add here before implementing elsewhere
+3. BaseIndex, BaseChunker, BaseReranker must be implemented, never instantiated
+4. One experiment = one folder — never overwrite prior results
+5. All pipeline steps log to stdout + experiment log file
+
+## What good output looks like
+- A new index backend: implements BaseIndex, registered in factory, appears in UI dropdown
+- A new chunker: implements BaseChunker, registered in factory, config enum updated
+- A new eval metric: implements BaseMetric, registered in BenchmarkScorer
+
+## What to never do
+- Import from a specific pipeline inside config.py or types.py
+- Hardcode "gpt-4o-mini" anywhere outside config.py
+- Write to out/ without using the experiment name as a prefix
 ```
 
+Also create rag-lab/experiments/02_retrieval_comparison/CLAUDE.md:
+
+```
+# Experiment 02 — Retrieval Comparison
+
+## Purpose
+Compare ChromaDB (dense), BM25 (sparse), HybridRRF, and PageIndex
+on EnterpriseRAG-Bench questions across 4 source types.
+
+## Config files
+- config.yaml → chroma backend
+- config_pageindex.yaml → pageindex backend
+- config_hybrid.yaml → hybrid_rrf backend
+
+## Expected outputs in out/raglab_out/
+- 02_retrieval_comparison_*_scores.csv
+- 02_retrieval_comparison_*_report.md
+- 02_retrieval_comparison_*_traces.jsonl
+
+## Do not modify
+- golden/questions.jsonl (ground truth — immutable)
+- corpus/raw/ (raw docs — immutable)
+```
+
+---
+
+## SKILL 01 — Types & Config Foundation
+
+```
+Read types.py and config.py from .github/copilot-instructions.md.
+Replace the existing files with the full versions defined there.
+Run: python -c "from raglab.config import Config; from raglab.types import Document"
 Confirm no import errors before proceeding.
+```
+
+---
 
 ## SKILL 02 — EnterpriseRAG-Bench Data Loader
 
+```
 Create src/raglab/parsers/enterprise_bench.py
 
 Requirements:
@@ -35,10 +101,13 @@ Requirements:
 
 Add to pyproject.toml: huggingface-hub, datasets
 No other new dependencies.
+```
 
+---
 
 ## SKILL 03 — Chunker Implementations
 
+```
 In src/raglab/chunkers/, create base.py and four implementations.
 
 base.py:
@@ -77,9 +146,13 @@ Factory in __init__.py:
           case "none":      return PassthroughChunker(cfg)
 
 Add: tiktoken, spacy
+```
+
+---
 
 ## SKILL 04 — Intent Classifier
 
+```
 Create src/raglab/classifiers/base.py, rule_based.py, llm_classifier.py, __init__.py
 
 base.py:
@@ -108,13 +181,14 @@ __init__.py → HybridClassifier (default):
   3. Otherwise call LLMClassifier and return its result.
   method field = "rule" or "llm" accordingly.
 
-Factory:
-```python
-def get_classifier(cfg: IntentCfg) -> BaseClassifier
+Factory: def get_classifier(cfg: IntentCfg) -> BaseClassifier
 ```
 
-## SKILL 05 — Embedding Manager + ChromaDB Index
+---
 
+## SKILL 05 — Embedding Manager + Index Backends
+
+```
 Create src/raglab/utils/embedder.py:
   class Embedder:
     Singleton per model name. Supports all models in EmbedCfg.model enum.
@@ -160,9 +234,13 @@ Index factory in src/raglab/index/__init__.py:
           case "pageindex":        return PageIndexAdapter(cfg)
 
 Add: chromadb, sentence-transformers, rank-bm25
+```
+
+---
 
 ## SKILL 06 — PageIndex Adapter
 
+```
 Create src/raglab/index/pageindex_adapter.py → PageIndexAdapter(BaseIndex)
 
 build(chunks: List[Chunk]):
@@ -183,9 +261,13 @@ is_built(): check persist dir has expected doc count.
 
 IMPORTANT: No embeddings used anywhere in this file.
 Add: pageindex
+```
 
-## SKILL 07 — Reranker
+---
 
+## SKILL 07 — Rerankers (Multiple Options)
+
+```
 Create src/raglab/rerankers/base.py:
   class BaseReranker(ABC):
       def rerank(self, query: str, chunks: List[RetrievedChunk]) -> List[RetrievedChunk]: ...
@@ -221,9 +303,13 @@ Factory in __init__.py:
 
 All rerankers: log original rank vs new rank for top-3 after reranking.
 Add: flashrank, transformers (for MonoT5)
+```
+
+---
 
 ## SKILL 08 — Naive RAG Pipeline
 
+```
 Create src/raglab/pipelines/naive_rag.py
 
 class NaiveRAGPipeline:
@@ -242,9 +328,13 @@ class NaiveRAGPipeline:
 
 Helper: def build_llm_client(cfg: LLMCfg) — returns openai.OpenAI or
         an ollama-compatible client based on cfg.provider
+```
 
-## SKILL 09 — Agentic RAG Pipeline
+---
 
+## SKILL 09 — Agentic RAG Pipeline (Multiple Strategies)
+
+```
 Create src/raglab/pipelines/agentic_rag.py
 
 class AgenticRAGPipeline:
@@ -287,9 +377,13 @@ class AgenticRAGPipeline:
           Log full Thought/Action/Observation trace in metadata.
 
 All strategies return EvalResult with strategy name in metadata.
+```
 
-## SKILL 10 — Eval Scorer & Reporter    
+---
 
+## SKILL 10 — Eval Scorer (Multiple Metrics)
+
+```
 Create src/raglab/eval/scorer.py
 
 class BaseMetric(ABC):
@@ -336,7 +430,11 @@ class BenchmarkScorer:
                  intent_label, answer_correct, completeness, overall_score,
                  recall_at_1, recall_at_3, recall_at_5, latency_ms
         # Include ALL slot selections so you can pivot any way you want
+```
 
+---
+
+```
 Create src/raglab/eval/scorer.py and src/raglab/eval/reporter.py
 
 scorer.py:
@@ -366,9 +464,13 @@ reporter.py:
         Markdown file with tables, top/bottom 5 questions, config snapshot.
 
 Add: pandas, tabulate
+```
+
+---
 
 ## SKILL 11 — run_experiment.py Orchestrator
 
+```
 Replace/extend src/raglab/run_experiment.py
 
 CLI: python -m raglab.run_experiment --config PATH [--download-data]
@@ -398,9 +500,13 @@ Index factory (add to src/raglab/index/__init__.py):
 
 Use typer for CLI. Use PyYAML for config loading.
 Add: typer, pyyaml
+```
+
+---
 
 ## SKILL 12 — FastAPI Backend
 
+```
 Create api/main.py, api/routers/query.py, api/routers/experiments.py,
 api/routers/benchmark.py, api/models.py
 
@@ -427,9 +533,13 @@ main.py:
 
 Run: uvicorn api.main:app --reload --port 8000
 Add: fastapi, uvicorn[standard], httpx
+```
 
-## SKILL 13 — Apple-Style Next.js Frontend
+---
 
+## SKILL 13 — Apple-Style Next.js Frontend (Full Tunable Playground)
+
+```
 Initialize Next.js app in /app:
 npx create-next-app@latest app --typescript --tailwind --eslint --app --src-dir
 npx shadcn@latest init
@@ -502,7 +612,7 @@ RIGHT PANEL (flex-1):
 
   Top: Question input area
     - TextArea: type your question (large, prominent)
-    - OR: "Pick from benchmark" → slide-in sheet with 
+    - OR: "Pick from benchmark" → slide-in sheet with
       filterable list of 50 benchmark questions (source_type filter)
     - [Ask] button: primary, Apple blue, full width, with loading state
 
@@ -532,16 +642,16 @@ PAGE 2 — /benchmark:
   Top bar: experiment selector + "Run new eval" button
   Score summary cards (animated count-up on load):
     Avg Correctness · Avg Completeness · Avg Overall · Recall@3
-  
+
   Chart row (Recharts):
     Bar chart: overall_score × source_type, grouped by index_backend
     Bar chart: overall_score × question_category, grouped by pipeline
     Bar chart: overall_score × agentic_strategy (complex questions only)
     Line chart: recall@1 vs recall@3 vs recall@5 (shows ANN quality)
-  
+
   Comparison table: sortable by any metric, filterable by source_type,
     pipeline, index_backend. Rows expand to show question + answer preview.
-  
+
   "Where did each pipeline fail?" section:
     Bottom-5 questions for naive vs bottom-5 for agentic — side by side.
 
@@ -570,7 +680,11 @@ Global:
   Skeleton cards during all API calls (never raw spinners)
   Empty states with minimal SVG illustrations for no-data views
   All animations via Framer Motion (layout animations, slide-ins, count-ups)
+```
 
+---
+
+```
 Initialize Next.js app in /app directory:
 npx create-next-app@latest app --typescript --tailwind --eslint --app --src-dir
 
@@ -636,10 +750,262 @@ Global components:
   - Toast notifications for API errors
   - Loading skeleton cards (not spinners) during API calls
   - Empty state illustrations for no-data views
+```
 
+---
 
-# SKILL 14A — Hybrid Retrieval (BM25 + Dense Embeddings)
+## SKILL 15 — Subagent Architecture (LangGraph)
 
+```
+Create src/raglab/agents/ directory with full multi-agent orchestration.
+
+--- agents/state.py ---
+RAGState (TypedDict for LangGraph):
+{
+  question: Question
+  intent: IntentResult | None
+  retrieval_plan: List[str]        # sub-queries from planner
+  retrieved_chunks: List[RetrievedChunk]
+  draft_answer: str | None
+  critique: dict | None            # {errors: [], unsupported: [], confidence: float}
+  final_answer: str | None
+  citations: dict
+  trace: dict
+  iteration: int
+}
+
+--- agents/planner.py --- QueryPlannerAgent:
+Input: RAGState with question
+LLM call: decompose question into sub-queries with source_type hints
+Output: state with retrieval_plan populated
+If intent.label == "simple": retrieval_plan = [question.text] (passthrough)
+
+--- agents/retriever.py --- RetrievalAgent:
+Input: RAGState with retrieval_plan
+For each sub-query: call index.retrieve() with source_type filter from plan
+Merge, deduplicate by chunk.id, apply DiversityFilterHook
+Output: state with retrieved_chunks populated
+
+--- agents/synthesizer.py --- SynthesisAgent:
+Input: RAGState with retrieved_chunks
+Build constrained prompt with citation format
+LLM call (temp=0.1)
+Extract citations via regex
+Output: state with draft_answer and citations populated
+
+--- agents/critic.py --- CriticAgent:
+Input: RAGState with draft_answer + retrieved_chunks
+LLM call: "Identify any claims in this answer not supported by the context.
+           List unsupported claims and factual errors.
+           Reply JSON: {errors: [], unsupported_claims: [], confidence: 0.0-1.0}"
+Output: state with critique populated
+
+--- agents/graph.py --- Build LangGraph StateGraph:
+
+graph = StateGraph(RAGState)
+graph.add_node("classify", classify_intent)
+graph.add_node("plan", QueryPlannerAgent)
+graph.add_node("retrieve", RetrievalAgent)
+graph.add_node("synthesize", SynthesisAgent)
+graph.add_node("critique", CriticAgent)
+graph.add_node("finalize", finalize_answer)
+
+graph.set_entry_point("classify")
+graph.add_edge("classify", "plan")
+graph.add_edge("plan", "retrieve")
+graph.add_edge("retrieve", "synthesize")
+graph.add_edge("synthesize", "critique")
+
+def should_revise(state: RAGState) -> str:
+    if state["iteration"] >= 2: return "finalize"
+    if state["critique"]["confidence"] < 0.6: return "retrieve"  # re-retrieve
+    return "finalize"
+
+graph.add_conditional_edges("critique", should_revise,
+    {"retrieve": "retrieve", "finalize": "finalize"})
+
+graph.add_edge("finalize", END)
+app_graph = graph.compile()
+
+Wire into run_experiment.py:
+    if cfg.intent.mode != "always_simple":
+        result = app_graph.invoke({"question": question, "iteration": 0})
+    else:
+        result = naive_pipeline.run(question)
+
+Add: langgraph, langchain-core
+```
+
+---
+
+## SKILL 16 — Self-Reflection + Memory-Augmented RAG
+
+```
+Create src/raglab/pipelines/reflection_rag.py → ReflectionRAGPipeline:
+
+class ReflectionRAGPipeline:
+  """Generate → Critique → Refine loop. Max 2 reflection rounds."""
+
+  def run(self, question: Question) -> EvalResult:
+    round = 0
+    query = question.text
+
+    while round < 2:
+      chunks = index.retrieve(query, top_k)
+      answer = llm_generate(chunks, question.text)
+
+      # Self-critique: does the answer fully address the question?
+      critique = llm_call(
+        f"Question: {question.text}\nAnswer: {answer}\nRetrieved: {chunks}\n"
+        "What information is missing? What is unsupported? "
+        "Reply JSON: {missing: str | null, unsupported: [str], complete: bool}"
+      )
+
+      if critique["complete"]: break
+
+      # Refine query based on what's missing
+      query = f"{question.text} specifically about: {critique['missing']}"
+      round += 1
+
+    return EvalResult(..., metadata={"reflection_rounds": round})
+
+---
+
+Create src/raglab/utils/memory.py → ConversationMemory:
+
+class ConversationMemory:
+  """Short-term memory for multi-turn sessions."""
+  def __init__(self, max_turns: int = 5)
+  def add(self, question: str, answer: str, chunks: List[RetrievedChunk])
+  def get_context(self) -> str:
+    """Returns last N turns formatted for injection into retrieval query."""
+    # "Previous: Q: X A: Y\nPrevious: Q: A B: Z\n"
+  def augment_query(self, query: str) -> str:
+    """Prepend memory context to query for retrieval."""
+    if not self.turns: return query
+    return f"{self.get_context()}\nCurrent question: {query}"
+  def clear(self)
+
+Wire into API router: ConversationMemory is session-scoped (keyed by session_id).
+Frontend sends session_id with each query. Memory persists within a browser session.
+```
+
+---
+
+## SKILL 17 — RAG Extensions (GraphRAG + Adaptive + Fusion)
+
+```
+Create src/raglab/pipelines/rag_fusion.py → RAGFusionPipeline:
+
+"""Generate N query variants, retrieve for each, fuse with RRF."""
+def run(self, question: Question, n_variants: int = 4) -> EvalResult:
+  variants = llm_call(
+    f"Generate {n_variants} different phrasings of this question: {question.text}"
+    "Reply JSON: {variants: [str]}"
+  )
+  all_chunks = []
+  for v in [question.text] + variants["variants"]:
+    chunks = index.retrieve(v, top_k)
+    all_chunks.append((v, chunks))
+
+  # RRF across all retrieval lists
+  fused = rrf_merge([chunks for _, chunks in all_chunks], k=60)
+  answer = llm_generate(fused[:top_k], question.text)
+  return EvalResult(..., pipeline="rag_fusion", metadata={"variants": variants})
+
+---
+
+Create src/raglab/pipelines/adaptive_rag.py → AdaptiveRAGPipeline:
+
+Four-way routing based on query type (extend IntentCfg):
+  "factual"        → NaiveRAGPipeline (direct lookup)
+  "analytical"     → AgenticRAGPipeline (decompose + multi-hop)
+  "generative"     → SynthesisAgent (creative synthesis from corpus)
+  "conversational" → memory-augmented NaiveRAG (inject session context)
+
+Classifier prompt:
+  "Classify this query: {question}
+   Types: factual (direct fact lookup) | analytical (requires reasoning across sources)
+   | generative (open-ended synthesis) | conversational (follow-up, references prior turn)
+   Reply JSON: {type: str, confidence: float}"
+
+---
+
+Create src/raglab/index/graph_rag.py → GraphRAGIndex(BaseIndex):
+
+build(chunks):
+  Use spaCy (en_core_web_sm) to extract entities from each chunk
+  Build NetworkX DiGraph: nodes = entities, edges = co-occurrence in same chunk
+  Store (entity → chunk_ids) mapping alongside the graph
+
+retrieve(query, top_k):
+  Step 1: extract entities from query via spaCy
+  Step 2: find those entities in graph
+  Step 3: traverse 1-hop neighbors to find related entities
+  Step 4: collect chunk_ids from all matched + neighbor entities
+  Step 5: re-rank those chunks by vector similarity to query (via ChromaIndex)
+  Return top_k
+
+Update IndexCfg: backend adds "graph_rag" option
+Add: networkx, spacy (already dep)
+```
+
+---
+
+## SKILL 18 — MCP Server + Langfuse Plugin
+
+```
+Create api/mcp_server.py — expose RAG pipeline as MCP server:
+
+Tools to expose:
+  retrieve(query: str, source_type: str, top_k: int) → List[RetrievedChunk]
+    "Retrieve relevant chunks from the enterprise corpus for a given query"
+
+  ask(question: str, source_type: str, pipeline: str) → QueryResponse
+    "Run full RAG pipeline and return answer with citations"
+
+  index_status() → dict
+    "Return current index stats: doc count, last updated, backend"
+
+  run_eval(experiment: str, max_questions: int) → dict
+    "Run benchmark eval and return summary scores"
+
+Use fastmcp (pip install fastmcp) for easy MCP server creation:
+  from fastmcp import FastMCP
+  mcp = FastMCP("RAG Playground")
+
+  @mcp.tool()
+  def retrieve(query: str, source_type: str = "all", top_k: int = 5):
+      ...
+
+  if __name__ == "__main__":
+      mcp.run()  # stdio transport — works with Claude Desktop
+
+Add to README: instructions to add this server to Claude Desktop config.
+
+---
+
+Create src/raglab/observability/langfuse_tracer.py:
+
+Wrap every pipeline step with Langfuse spans:
+  trace = langfuse.trace(name=f"rag-{experiment_name}", input=question.text)
+  span_classify = trace.span(name="intent_classification")
+  span_retrieve = trace.span(name="retrieval", input=query)
+  span_rerank = trace.span(name="reranking")
+  span_generate = trace.span(name="generation")
+  trace.score(name="overall_score", value=result.overall_score)
+
+Replace RetrievalTracer (JSONL-based) with LangfuseTracer when LANGFUSE_SECRET_KEY is set.
+Fall back to JSONL tracer if key not present (keeps free tier working).
+
+Add: langfuse, fastmcp
+```
+
+---
+
+## SKILL 14 — Experiment Config for Full Run
+
+```
 Create src/raglab/index/hybrid_index.py → HybridIndex(BaseIndex)
 
 This wraps ChromaIndex (dense) with a BM25 layer for exact keyword matching.
@@ -673,10 +1039,13 @@ Update index factory in __init__.py:
   case "hybrid": return HybridIndex(cfg, embed_cfg)
 
 Add: rank-bm25
+```
 
+---
 
-SKILL 14B — Ingestion: Dedup, Normalize, Version
+## SKILL 14B — Ingestion: Dedup, Normalize, Version
 
+```
 Create src/raglab/parsers/normalizer.py
 
 class DocumentNormalizer:
@@ -700,9 +1069,13 @@ class DocumentNormalizer:
 Wire into run_experiment.py after load_documents():
     docs = DocumentNormalizer().normalize(docs)
     docs = DocumentNormalizer().deduplicate(docs)
+```
 
-SKILL 14C — Confidence Scoring + Hallucination Fallback (Multiple Options)
+---
 
+## SKILL 14C — Confidence Scoring + Hallucination Fallback (Multiple Options)
+
+```
 Create src/raglab/utils/confidence.py
 
 class BaseConfidenceScorer(ABC):
@@ -751,7 +1124,11 @@ Hallucination fallback logic (shared base_pipeline.py):
     Revise or drop flagged sentences. Log revision count.
 
 Add: transformers (for NLI model, likely already added for MonoT5)
+```
 
+---
+
+```
 Create src/raglab/utils/confidence.py
 
 class SourceConfidenceScorer:
@@ -793,10 +1170,13 @@ After generation, check for NOT FOUND in answer:
 
 Add RetrieveCfg field:
     confidence_threshold: float = 0.35
+```
 
+---
 
-SKILL 14D — Citation-Backed Answers
+## SKILL 14D — Citation-Backed Answers
 
+```
 Update both NaiveRAGPipeline and AgenticRAGPipeline generation prompts:
 
 SYSTEM prompt update:
@@ -824,9 +1204,13 @@ Post-process the answer:
 
 Store citation_map in EvalResult.metadata["citations"].
 Surface in frontend as footnote-style expandable citations per answer.
+```
 
-SKILL 14E — Cache Layer (Exact + Semantic Options)
+---
 
+## SKILL 14E — Cache Layer (Exact + Semantic Options)
+
+```
 Create src/raglab/utils/cache.py
 
 class BaseCache(ABC):
@@ -858,7 +1242,11 @@ Factory:
 Wire into both pipeline run() methods as before.
 cache.stats() surfaced on frontend /playground page as a metrics chip.
 Add: diskcache
+```
 
+---
+
+```
 Create src/raglab/utils/cache.py
 
 class QueryCache:
@@ -887,9 +1275,13 @@ Wire into NaiveRAGPipeline and AgenticRAGPipeline retrieve step:
         cache.set(query, cfg.index.backend, cfg.retrieve.top_k, chunks)
 
 Add: diskcache
+```
 
-SKILL 14F — Observability: Full Retrieval Trace
+---
 
+## SKILL 14F — Observability: Full Retrieval Trace
+
+```
 Create src/raglab/utils/tracer.py
 
 class RetrievalTracer:
@@ -931,9 +1323,13 @@ Surface in frontend /playground page as a collapsible "Trace" panel below the an
 
 Add tracer.start_hop() / tracer.end_hop() calls inside both pipeline files.
 Use time.perf_counter() for all latency measurements.
+```
 
-SKILL 14 — Experiment Config for Full Run
+---
 
+## SKILL 14 — Experiment Config for Full Run
+
+```
 Create experiments/02_retrieval_comparison/config.yaml with these values:
 
 experiment:
@@ -975,4 +1371,4 @@ benchmark:
 Then create a second config at experiments/02_retrieval_comparison/config_pageindex.yaml
 with index.backend: "pageindex" — everything else identical.
 This lets you run both and compare CSVs.
-
+```

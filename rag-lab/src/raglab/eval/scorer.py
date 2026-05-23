@@ -187,13 +187,12 @@ class RetrievalRecallMetric(BaseMetric):
             )
             recall_results[str(k)] = found
         
-        # Store in metadata (extend existing chunk metadata for first chunk)
-        if not hasattr(result, '_metadata'):
-            result._metadata = {}
+        # Store in metadata dict
+        if not result.metadata:
+            result.metadata = {}
+        result.metadata["recall_at_k"] = recall_results
         
-        # Use model's extra fields or store via a convention
-        # Since EvalResult doesn't have metadata field, store recall in completeness
-        # if no other metric sets it
+        # Set completeness/answer_correct if not already set by another metric
         if result.completeness is None:
             # Use recall@5 as proxy for completeness
             max_k = max(self.recall_at_k)
@@ -359,8 +358,14 @@ class BenchmarkScorer:
         """
         Convert results to a pandas DataFrame.
         
-        Columns: question_id, source_type, category, pipeline, index_backend,
-                 intent_label, answer_correct, completeness, overall_score
+        Columns include ALL slot selections so you can pivot any way you want:
+        - question_id, question, source_type, category
+        - pipeline, index_backend, agentic_strategy
+        - reranker, cache_mode, intent_label
+        - ground_truth, predicted_answer
+        - answer_correct, completeness, overall_score
+        - recall_at_1, recall_at_3, recall_at_5
+        - latency_ms
         
         Args:
             results: List of scored EvalResult objects
@@ -372,16 +377,42 @@ class BenchmarkScorer:
         
         rows = []
         for r in results:
-            rows.append({
+            row = {
                 "question_id": r.question_id,
+                "question": r.question,
                 "source_type": r.source_type,
                 "category": r.category,
                 "pipeline": r.pipeline,
                 "index_backend": r.index_backend,
                 "intent_label": r.intent_label,
+                "ground_truth": r.ground_truth,
+                "predicted_answer": r.predicted_answer,
                 "answer_correct": r.answer_correct,
                 "completeness": r.completeness,
                 "overall_score": r.overall_score,
-            })
+            }
+            
+            # Extract metadata fields
+            metadata = r.metadata if hasattr(r, 'metadata') and r.metadata else {}
+            
+            # Agentic strategy (from agentic pipeline metadata)
+            row["agentic_strategy"] = metadata.get("strategy", "none")
+            
+            # Reranker type (from metadata if set, otherwise "none")
+            row["reranker"] = metadata.get("reranker", "none")
+            
+            # Cache mode (from metadata if set, otherwise "none")
+            row["cache_mode"] = metadata.get("cache_mode", "none")
+            
+            # Latency (from metadata if set, otherwise 0)
+            row["latency_ms"] = metadata.get("latency_ms", 0)
+            
+            # Recall@k scores (from RetrievalRecallMetric metadata)
+            recall_at_k = metadata.get("recall_at_k", {})
+            row["recall_at_1"] = recall_at_k.get("1", None)
+            row["recall_at_3"] = recall_at_k.get("3", None)
+            row["recall_at_5"] = recall_at_k.get("5", None)
+            
+            rows.append(row)
         
         return pd.DataFrame(rows)
