@@ -1,0 +1,9 @@
+name: "Beginner"
+description: "Safe, fast defaults — a good first query. No rerank, local LLM."
+index_backend: "chroma"
+chunk_strategy: "fixed"
+top_k: 5
+reranker: "none"
+intent_mode: "hybrid"
+llm_provider: "ollama"
+llm_model: "llama3"

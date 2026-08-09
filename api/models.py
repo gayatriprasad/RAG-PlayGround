@@ -29,10 +29,15 @@ class QueryRequest(BaseModel):
     experiment: Optional[str] = Field(
         None, description="Experiment name (loads its config). Defaults to latest."
     )
+    session_id: Optional[str] = Field(
+        None, description="Session ID for multi-turn conversation memory (optional)"
+    )
     # Playground-specific overrides
     chunk_strategy: Optional[str] = Field(None, description="Override chunking strategy")
     intent_mode: Optional[str] = Field(None, description="Override intent classification mode")
     reranker: Optional[str] = Field(None, description="Override reranker selection")
+    llm_provider: Optional[str] = Field(None, description="Override LLM provider (ollama/openai/anthropic/groq/hf/lmstudio)")
+    llm_model: Optional[str] = Field(None, description="Override LLM model name")
 
 
 # ─── Response Models ───────────────────────────────────────────────────────────

@@ -1,0 +1,9 @@
+name: "Production Balanced"
+description: "Hybrid retrieval + cross-encoder rerank + gpt-4o-mini — the recommended default for a real deployment."
+index_backend: "hybrid_rrf"
+chunk_strategy: "recursive"
+top_k: 6
+reranker: "cross_encoder"
+intent_mode: "hybrid"
+llm_provider: "openai"
+llm_model: "gpt-4o-mini"

@@ -1,0 +1,9 @@
+name: "Max Recall"
+description: "Hybrid RRF + reranking + top_k=10 — slow, but highest retrieval quality."
+index_backend: "hybrid_rrf"
+chunk_strategy: "semantic"
+top_k: 10
+reranker: "cross_encoder"
+intent_mode: "hybrid"
+llm_provider: "ollama"
+llm_model: "llama3"

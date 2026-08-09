@@ -6,9 +6,9 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from api.models import (
@@ -22,15 +22,44 @@ if str(_RAG_LAB_SRC) not in sys.path:
     sys.path.insert(0, str(_RAG_LAB_SRC))
 
 from raglab.classifiers import get_classifier
-from raglab.config import Config, IndexCfg, IntentCfg, LLMCfg, RetrieveCfg
+from raglab.config import Config, IndexCfg, IntentCfg, LLMCfg, NetworkCfg, RetrieveCfg
 from raglab.index import get_index
+from raglab.net.rate_limit import limiter
 from raglab.pipelines import AgenticRAGPipeline, NaiveRAGPipeline
 from raglab.rerankers import get_reranker
 from raglab.types import Question
+from raglab.utils.memory import ConversationMemory
+
+_QUERY_RATE_LIMIT = f"{NetworkCfg().rate_limit_per_minute}/minute"
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["query"])
+
+# ─── Session Memory Store ──────────────────────────────────────────────────────
+
+# Global session store: session_id → ConversationMemory
+# In production, this should be Redis or similar persistent storage
+SESSION_MEMORIES: Dict[str, ConversationMemory] = {}
+
+def get_or_create_memory(session_id: Optional[str]) -> Optional[ConversationMemory]:
+    """
+    Get or create conversation memory for a session.
+    
+    Args:
+        session_id: Session identifier (optional)
+        
+    Returns:
+        ConversationMemory instance, or None if no session_id
+    """
+    if not session_id:
+        return None
+    
+    if session_id not in SESSION_MEMORIES:
+        SESSION_MEMORIES[session_id] = ConversationMemory(max_turns=5)
+        logger.info(f"📝 Created new conversation memory for session: {session_id}")
+    
+    return SESSION_MEMORIES[session_id]
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -82,7 +111,8 @@ def _load_config(config_path: Path) -> Config:
 
 
 @router.post("/query")
-async def query(req: QueryRequest):
+@limiter.limit(_QUERY_RATE_LIMIT)
+async def query(request: Request, req: QueryRequest):
     """
     Run a single query through the RAG pipeline.
 
@@ -109,6 +139,10 @@ async def query(req: QueryRequest):
         cfg.index.backend = req.index_backend
     if req.intent_mode:
         cfg.intent.mode = req.intent_mode
+    if req.llm_provider:
+        cfg.llm.provider = req.llm_provider
+    if req.llm_model:
+        cfg.llm.model = req.llm_model
 
     # Disable caching for live API queries to avoid stale results
     cfg.retrieve.cache_mode = "none"
@@ -119,12 +153,8 @@ async def query(req: QueryRequest):
 
     try:
         # Initialize components
-        import inspect
-
         index = get_index(cfg.index, cfg.embed)
         experiment_name = cfg.experiment.name
-
-        # Check index is built
         if hasattr(index, "is_built") and not index.is_built(experiment_name):
             raise HTTPException(
                 status_code=400,
@@ -134,7 +164,17 @@ async def query(req: QueryRequest):
         classifier = get_classifier(cfg.intent, cfg.llm)
         reranker = get_reranker(cfg.retrieve)
 
-        # Classify intent (or use override)
+        # If session_id provided, augment query with conversation context
+        memory = get_or_create_memory(req.session_id)
+        query_text = req.question
+
+        if memory:
+            augmented_query = memory.augment_query(req.question)
+            if augmented_query != req.question:
+                logger.info(f"Augmented query with {len(memory.turns)} previous turns")
+                query_text = augmented_query
+
+        # Classify intent (or use override) — classify on the original question
         if req.pipeline_override:
             intent_label = "simple" if req.pipeline_override == "naive" else "complex"
             intent_response = IntentResponse(
@@ -148,10 +188,10 @@ async def query(req: QueryRequest):
                 method=intent_result.method,
             )
 
-        # Create a Question object for the pipeline
+        # Create a Question object for the pipeline (using the memory-augmented text)
         question = Question(
             id="api_query",
-            text=req.question,
+            text=query_text,
             ground_truth="",  # No ground truth for live queries
             source_type=req.source_type or "all",
             category="api_query",
@@ -160,11 +200,79 @@ async def query(req: QueryRequest):
         # Route to pipeline
         if intent_response.label == "simple":
             pipeline = NaiveRAGPipeline(index, reranker, cfg)
-            result = pipeline.run(question)
         else:
             pipeline = AgenticRAGPipeline(index, reranker, cfg)
-            result = pipeline.run(question)
 
+        # Streaming path (Skill 32): only the naive pipeline can stream
+        # token-by-token (it makes a single LLM call). The agentic pipeline
+        # makes multiple internal LLM calls, so streaming requests against it
+        # fall back to running the full pipeline and emitting the finished
+        # answer as one SSE event — the frontend contract stays identical.
+        if req.stream:
+            if intent_response.label == "simple":
+                retrieved_chunks = pipeline._retrieve_chunks(question)
+                messages = pipeline._build_prompt(question, retrieved_chunks)
+                token_source = pipeline.llm_client.stream(messages)
+            else:
+                full_result = pipeline.run(question)
+                token_source = iter([full_result.predicted_answer])
+                retrieved_chunks = full_result.retrieved_chunks
+
+            chunks_meta = [
+                {
+                    "chunk_id": rc.chunk.id,
+                    "doc_id": rc.chunk.doc_id,
+                    "source_type": rc.chunk.source_type,
+                    "score": rc.score,
+                }
+                for rc in retrieved_chunks
+            ]
+
+            def _generate():
+                from raglab.net.streaming import format_sse_event
+
+                yield format_sse_event(
+                    {
+                        "meta": {
+                            "pipeline": intent_response.label,
+                            "intent_confidence": intent_response.confidence,
+                            "retrieved_chunks": chunks_meta,
+                        }
+                    }
+                )
+                answer_parts: List[str] = []
+                try:
+                    for token in token_source:
+                        answer_parts.append(token)
+                        yield format_sse_event({"token": token})
+                except Exception as e:
+                    logger.error(f"Streaming generation failed: {e}")
+                    yield format_sse_event({"error": str(e)})
+                finally:
+                    if memory:
+                        memory.add(
+                            question=req.question,
+                            answer="".join(answer_parts),
+                            chunks=retrieved_chunks,
+                        )
+                    yield "data: [DONE]\n\n"
+
+            from raglab.net.streaming import SSE_HEADERS
+
+            return StreamingResponse(
+                _generate(), media_type="text/event-stream", headers=SSE_HEADERS
+            )
+
+        result = pipeline.run(question)
+
+        # Add this turn to conversation memory (if session_id provided)
+        if memory:
+            memory.add(
+                question=req.question,  # Store original question, not augmented
+                answer=result.predicted_answer,
+                chunks=result.retrieved_chunks,
+            )
+            logger.info(f"Stored turn in memory (total turns: {len(memory.turns)})")
     finally:
         os.chdir(original_cwd)
 

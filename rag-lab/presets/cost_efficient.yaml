@@ -1,0 +1,9 @@
+name: "Cost Efficient"
+description: "Chroma + local Ollama LLM + exact-match cache — zero API cost, ideal for heavy experimentation."
+index_backend: "chroma"
+chunk_strategy: "fixed"
+top_k: 5
+reranker: "none"
+intent_mode: "rule"
+llm_provider: "ollama"
+llm_model: "llama3"

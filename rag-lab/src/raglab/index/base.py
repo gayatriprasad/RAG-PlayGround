@@ -3,7 +3,7 @@ Abstract base class for vector/document indices.
 """
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
 from raglab.types import Chunk, RetrievedChunk
 
@@ -24,13 +24,21 @@ class BaseIndex(ABC):
         pass
     
     @abstractmethod
-    def retrieve(self, query: str, top_k: int) -> List[RetrievedChunk]:
+    def retrieve(
+        self,
+        query: str,
+        top_k: int,
+        experiment_name: str = "default",
+        source_type: Optional[str] = None,
+    ) -> List[RetrievedChunk]:
         """
         Retrieve most relevant chunks for a query.
         
         Args:
             query: Query string
             top_k: Number of chunks to retrieve
+            experiment_name: Name of the experiment (for collection lookup)
+            source_type: Optional filter by source type
             
         Returns:
             List of RetrievedChunk objects sorted by relevance (highest first)

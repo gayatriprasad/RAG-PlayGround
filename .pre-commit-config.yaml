@@ -1,0 +1,21 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: .venv/bin/ruff check --fix rag-lab/src/
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: mypy
+        name: mypy
+        entry: .venv/bin/mypy rag-lab/src/raglab --ignore-missing-imports
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: no-secrets
+        name: block secrets in diff
+        entry: >-
+          bash -c 'git diff --cached | grep -E "(sk-[a-zA-Z0-9]{20}|api_key\s*=\s*[\"'"'"'][a-zA-Z0-9])" && exit 1 || exit 0'
+        language: system
+        pass_filenames: false

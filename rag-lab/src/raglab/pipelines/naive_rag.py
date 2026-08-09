@@ -21,37 +21,17 @@ logger = logging.getLogger(__name__)
 def build_llm_client(cfg: LLMCfg):
     """
     Build LLM client based on provider configuration.
-    
+
+    Delegates to the universal model registry (Skill 21).
+
     Args:
-        cfg: LLMCfg with provider ("openai" or "ollama")
-        
+        cfg: LLMCfg / ModelRegistryCfg with provider field
+
     Returns:
-        OpenAI client or Ollama-compatible client
+        BaseLLMClient implementation
     """
-    if cfg.provider == "openai":
-        try:
-            from openai import OpenAI
-            client = OpenAI()  # Uses OPENAI_API_KEY env var
-            logger.info(f"Initialized OpenAI client with model: {cfg.model}")
-            return client
-        except ImportError:
-            raise ImportError("openai package required. Install with: pip install openai")
-    
-    elif cfg.provider == "ollama":
-        try:
-            from openai import OpenAI
-            # Ollama provides OpenAI-compatible API
-            client = OpenAI(
-                base_url=cfg.ollama_base_url,
-                api_key="ollama"  # Ollama doesn't require real key
-            )
-            logger.info(f"Initialized Ollama client at {cfg.ollama_base_url} with model: {cfg.model}")
-            return client
-        except ImportError:
-            raise ImportError("openai package required for Ollama client. Install with: pip install openai")
-    
-    else:
-        raise ValueError(f"Unknown provider: {cfg.provider}. Valid options: 'openai', 'ollama'")
+    from raglab.models import get_llm
+    return get_llm(cfg)
 
 
 class NaiveRAGPipeline:
@@ -348,15 +328,8 @@ class NaiveRAGPipeline:
             Generated answer text
         """
         try:
-            response = self.llm_client.chat.completions.create(
-                model=self.cfg.llm.model,
-                messages=messages,
-                temperature=self.cfg.llm.temperature,
-                max_tokens=self.cfg.llm.max_tokens
-            )
-            
-            answer = response.choices[0].message.content.strip()
-            return answer
+            answer = self.llm_client.complete(messages)
+            return answer.strip()
             
         except Exception as e:
             logger.error(f"LLM call failed: {e}")

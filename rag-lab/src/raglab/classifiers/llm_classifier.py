@@ -49,20 +49,10 @@ Reply ONLY with valid JSON in this format:
         self.cfg = cfg
         self.llm_cfg = llm_cfg
         
-        # Initialize LLM client based on provider
-        if llm_cfg.provider == "openai":
-            from openai import OpenAI
-            self.client = OpenAI()
-            self.model = cfg.llm_model
-        elif llm_cfg.provider == "ollama":
-            from openai import OpenAI
-            self.client = OpenAI(
-                base_url=llm_cfg.ollama_base_url,
-                api_key="ollama"  # Ollama doesn't need a real key
-            )
-            self.model = cfg.llm_model
-        else:
-            raise ValueError(f"Unknown LLM provider: {llm_cfg.provider}")
+        # Initialize LLM client via universal model registry
+        from raglab.models import get_llm
+        self.client = get_llm(llm_cfg)
+        self.model = cfg.llm_model
         
         logger.info(f"LLMClassifier initialized with model={self.model}, provider={llm_cfg.provider}")
     
@@ -77,17 +67,14 @@ Reply ONLY with valid JSON in this format:
             IntentResult with label and confidence
         """
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            content = self.client.complete(
+                [
                     {"role": "system", "content": self.SYSTEM_PROMPT},
                     {"role": "user", "content": query}
                 ],
                 temperature=0.0,
-                max_tokens=100
-            )
-            
-            content = response.choices[0].message.content.strip()
+                max_tokens=100,
+            ).strip()
             
             # Parse JSON response
             try:

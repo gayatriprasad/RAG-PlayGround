@@ -1,0 +1,68 @@
+[
+  {
+    "id": "ch01",
+    "title": "Beat the baseline",
+    "difficulty": "beginner",
+    "goal": "Score above 0.70 overall on simple factual questions",
+    "metric": "overall_score",
+    "operator": ">",
+    "target": 0.70,
+    "filter": { "category": "factual" },
+    "hint": "The agentic pipeline doesn't help on simple, single-fact lookups — it just adds latency. Try the naive pipeline with a dense embedding model first.",
+    "concept": "Naive RAG (single retrieve + generate) is the right tool for direct factual lookups. Agentic decomposition earns its cost only on multi-hop or ambiguous queries.",
+    "locked_params": []
+  },
+  {
+    "id": "ch02",
+    "title": "The exact-match problem",
+    "difficulty": "beginner",
+    "goal": "Reach recall@3 above 0.9 on questions containing code snippets",
+    "metric": "recall_at_3",
+    "operator": ">",
+    "target": 0.9,
+    "filter": { "query_contains_code": true },
+    "hint": "Dense embeddings blur exact tokens like function names and variable identifiers. A sparse or hybrid retriever preserves exact-match signal.",
+    "concept": "BM25 (sparse, term-frequency based) excels at exact-token queries — code, IDs, error codes — where dense embeddings lose precision. Hybrid RRF combines both strengths.",
+    "locked_params": []
+  },
+  {
+    "id": "ch03",
+    "title": "Multi-hop mastery",
+    "difficulty": "intermediate",
+    "goal": "Score above 0.75 overall on multi-document questions",
+    "metric": "overall_score",
+    "operator": ">",
+    "target": 0.75,
+    "filter": { "category": "multi_doc" },
+    "hint": "A single retrieval pass can't gather evidence spread across multiple documents. Try the agentic pipeline with query decomposition.",
+    "concept": "Agentic decomposition breaks a multi-hop question into sub-questions, retrieves for each independently, then synthesizes — this is what naive single-shot RAG structurally cannot do.",
+    "locked_params": []
+  },
+  {
+    "id": "ch04",
+    "title": "Don't hallucinate",
+    "difficulty": "intermediate",
+    "goal": "Handle adversarial/absent-info questions correctly above 0.8",
+    "metric": "adversarial_handled",
+    "operator": ">",
+    "target": 0.8,
+    "filter": { "category": "adversarial" },
+    "hint": "A model that always tries to answer will hallucinate when the corpus has no relevant information. Raise the confidence threshold so low-evidence queries fall back to 'insufficient evidence'.",
+    "concept": "Confidence scoring (composite or NLI-based) lets the pipeline recognize when retrieved evidence doesn't support an answer, and refuse gracefully instead of hallucinating.",
+    "locked_params": []
+  },
+  {
+    "id": "ch05",
+    "title": "Speed vs quality",
+    "difficulty": "advanced",
+    "goal": "Score above 0.70 overall while keeping average latency under 5000ms",
+    "metric": "overall_score",
+    "operator": ">",
+    "target": 0.70,
+    "constraint": { "metric": "avg_latency_ms", "operator": "<", "target": 5000 },
+    "filter": {},
+    "hint": "Agentic pipelines and large models are slow. Caching, a smaller/faster model, or skipping reranking on easy queries can recover latency without giving up much quality.",
+    "concept": "Every quality gain has a latency cost. Production RAG systems tune the whole pipeline against a latency budget, not just accuracy in isolation — this is the core tradeoff of Skill 5's NFR table.",
+    "locked_params": []
+  }
+]

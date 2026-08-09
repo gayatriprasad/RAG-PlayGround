@@ -1,0 +1,9 @@
+name: "Research Compare"
+description: "Balanced settings tuned for fair A/B testing on the Compare and Arena pages."
+index_backend: "chroma"
+chunk_strategy: "sentence"
+top_k: 5
+reranker: "none"
+intent_mode: "hybrid"
+llm_provider: "ollama"
+llm_model: "llama3"

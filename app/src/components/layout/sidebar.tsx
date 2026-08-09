@@ -2,13 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FlaskConical, BarChart3, GitCompare, Settings } from "lucide-react";
+import { FlaskConical, BarChart3, GitCompare, Settings, Trophy, Beaker, TrendingUp, Upload, ListChecks, BookOpen, ClipboardCheck, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/playground", label: "Playground", icon: FlaskConical },
   { href: "/benchmark", label: "Benchmark", icon: BarChart3 },
   { href: "/compare", label: "Compare", icon: GitCompare },
+  { href: "/arena", label: "Arena", icon: Trophy },
+  { href: "/prompt-lab", label: "Prompt Lab", icon: Beaker },
+  { href: "/viz", label: "Visualizer", icon: TrendingUp },
+  { href: "/learn", label: "Learn", icon: BookOpen },
+  { href: "/upload", label: "Upload", icon: Upload },
+  { href: "/challenges", label: "Challenges", icon: ListChecks },
+  { href: "/annotate", label: "Annotate", icon: ClipboardCheck },
+  { href: "/improve", label: "Improve", icon: RefreshCw },
   { href: "/config", label: "Config", icon: Settings },
 ];
 

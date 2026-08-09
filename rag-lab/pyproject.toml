@@ -1,8 +1,8 @@
 [project]
 name = "raglab"
 version = "0.1.0"
-description = "RAG learning laboratory"
-requires-python = ">=3.10"
+description = "NeuralBench — RAG research platform"
+requires-python = ">=3.11"
 dependencies = [
   "pyyaml",
   "pydantic>=2",
@@ -12,16 +12,19 @@ dependencies = [
   "pypdf",
   "pdfplumber",
   "python-docx",
+  "beautifulsoup4",
   "huggingface-hub",
   "datasets",
   "tiktoken",
   "spacy",
+  "nltk",
   "openai",
   "chromadb",
   "sentence-transformers",
   "rank-bm25",
   "flashrank",
   "transformers",
+  "sentencepiece",
   "torch",
   "pandas",
   "tabulate",
@@ -29,8 +32,108 @@ dependencies = [
   "fastapi",
   "uvicorn[standard]",
   "httpx",
+  "tenacity",
+  "slowapi",
+  "python-multipart",
   "diskcache",
-  # "pageindex",  # SKILL 06: May require manual installation from VectifyAI
+  "networkx",
+  "scipy",
+  "statsmodels",
+  "scikit-learn",
+  "rapidfuzz",
+]
+
+[project.optional-dependencies]
+
+# Agents + orchestration
+agents = [
+  "langgraph>=0.1.0",
+  "langchain-core>=0.2.0",
+]
+
+# Observability
+observability = [
+  "langfuse>=2.0.0",
+  "arize-phoenix",
+  "traceloop-sdk",
+  "fastmcp",
+]
+
+# Additional LLM providers
+providers = [
+  "anthropic>=0.25.0",
+  "groq>=0.5.0",
+  "google-generativeai",
+]
+
+# Extended vector DB backends
+vectordb = [
+  "faiss-cpu>=1.7.0",
+  "pymilvus>=2.3.0",
+  "pinecone-client>=3.0.0",
+  "weaviate-client>=4.0.0",
+  "qdrant-client>=1.7.0",
+  "psycopg2-binary>=2.9.0",
+  "pgvector>=0.2.0",
+  "psycopg[binary]",
+  "psycopg-pool",
+]
+
+# Retrieval extras
+retrieval = [
+  "ragatouille",
+  "RestrictedPython",
+]
+
+# Visualization
+viz = [
+  "umap-learn>=0.5.0",
+  "plotly>=5.0.0",
+]
+
+# Document parsing extras
+parsing = [
+  "marker-pdf",
+  "surya-ocr",
+]
+
+# Dev tools
+dev = [
+  "pytest>=7.0",
+  "pytest-asyncio",
+  "pytest-cov",
+  "respx",
+  "ruff",
+  "mypy",
+  "pre-commit",
+]
+
+# Everything
+all = [
+  "langgraph>=0.1.0",
+  "langchain-core>=0.2.0",
+  "langfuse>=2.0.0",
+  "arize-phoenix",
+  "traceloop-sdk",
+  "fastmcp",
+  "anthropic>=0.25.0",
+  "groq>=0.5.0",
+  "google-generativeai",
+  "faiss-cpu>=1.7.0",
+  "pymilvus>=2.3.0",
+  "pinecone-client>=3.0.0",
+  "weaviate-client>=4.0.0",
+  "qdrant-client>=1.7.0",
+  "psycopg2-binary>=2.9.0",
+  "pgvector>=0.2.0",
+  "psycopg[binary]",
+  "psycopg-pool",
+  "ragatouille",
+  "RestrictedPython",
+  "umap-learn>=0.5.0",
+  "plotly>=5.0.0",
+  "marker-pdf",
+  "surya-ocr",
 ]
 
 [project.scripts]
@@ -45,3 +148,14 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

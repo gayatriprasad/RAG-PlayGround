@@ -235,14 +235,11 @@ class LLMJudgeScorer(BaseConfidenceScorer):
                 f"Reply ONLY with a JSON array of numbers (one per chunk), e.g. [0.9, 0.3, ...]"
             )
 
-            response = client.chat.completions.create(
-                model=self._llm_cfg.model,
-                messages=[{"role": "user", "content": prompt}],
+            answer = client.complete(
+                [{"role": "user", "content": prompt}],
                 temperature=0.0,
                 max_tokens=200,
-            )
-
-            answer = response.choices[0].message.content.strip()
+            ).strip()
             # Parse JSON array
             import json
             # Extract array from response

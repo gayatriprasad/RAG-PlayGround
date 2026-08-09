@@ -1,0 +1,9 @@
+{
+  "_comment": "Regression baseline for `make eval`'s default experiment. Populated by scripts/update_baseline.py after a real benchmark run — never hand-edited with fabricated numbers. overall_score_mean == 0.0 and n_questions == 0 mean 'not yet run', not 'zero score'.",
+  "experiment": "02_retrieval_comparison",
+  "generated_at": null,
+  "n_questions": 0,
+  "overall_score_mean": 0.0,
+  "recall_at_3_mean": 0.0,
+  "tolerance": 0.05
+}

@@ -570,13 +570,12 @@ class AgenticRAGPipeline:
     def _call_llm(self, messages: List[dict]) -> str:
         """Call LLM and return response text."""
         try:
-            response = self.llm_client.chat.completions.create(
-                model=self.cfg.llm.model,
-                messages=messages,
+            response = self.llm_client.complete(
+                messages,
                 temperature=self.cfg.llm.temperature,
                 max_tokens=self.cfg.llm.max_tokens
             )
-            return response.choices[0].message.content.strip()
+            return response.strip()
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
             return f"ERROR: LLM generation failed - {str(e)}"

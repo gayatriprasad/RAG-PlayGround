@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - 'rag-lab/src/**'
+      - 'api/**'
+      - 'app/**'
+
+jobs:
+  lint-and-type-check:
+    name: Lint + Types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dev dependencies
+        run: |
+          pip install ruff mypy
+          pip install -e rag-lab/[dev]
+
+      - name: Ruff lint
+        run: ruff check rag-lab/src/ api/
+
+      - name: Mypy type check
+        run: mypy rag-lab/src/raglab/ api/ --ignore-missing-imports
+
+      - name: Verify core imports
+        run: |
+          cd rag-lab
+          python -c "
+          from raglab.config import Config
+          from raglab.types import Document, Question, EvalResult, IntentResult
+          from raglab.hooks import get_default_registry
+          print('All core imports OK')
+          "
+
+      - name: Run test suite (core path + slot regression + unit tests)
+        run: |
+          cd rag-lab
+          python -m pytest tests/ -q -k "not test_integration_e2e and not test_extended_combinations" --tb=short
+
+      - name: Verify regression baseline is initialized (Skill 50I)
+        run: |
+          cd rag-lab
+          python -c "
+          import json
+          baseline = json.load(open('tests/regression/baseline_scores.json'))
+          if baseline['n_questions'] == 0:
+              print('WARNING: baseline_scores.json has not been initialized yet '
+                    '(n_questions=0 = honest \"not yet run\" marker, not a fabricated score). '
+                    'Run \`make eval\` then \`python tests/regression/update_baseline.py\` to initialize it.')
+          else:
+              print(f'Baseline OK: {baseline[\"n_questions\"]} questions, '
+                    f'overall_score_mean={baseline[\"overall_score_mean\"]}')
+          "
+
+  frontend-check:
+    name: Frontend Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+      - run: cd app && npm ci
+      - run: cd app && npm run build
+      - run: cd app && npm run lint

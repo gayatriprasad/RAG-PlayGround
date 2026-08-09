@@ -1,0 +1,104 @@
+name: Run Benchmark Eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: 'Experiment folder name'
+        default: '02_retrieval_comparison'
+        required: true
+      index_backend:
+        description: 'Index backend: chroma or pageindex'
+        default: 'chroma'
+        required: true
+      max_questions:
+        description: 'Number of questions to eval (max 500)'
+        default: '50'
+        required: true
+  push:
+    paths:
+      - 'rag-lab/experiments/**'
+    branches: [main]
+
+jobs:
+  run-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install raglab
+        run: pip install -e rag-lab/
+
+      - name: Download corpus artifact (if available)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          name: corpus-slice-*
+          path: rag-lab/corpus/raw/
+        continue-on-error: true
+
+      - name: Patch config with inputs
+        run: |
+          cd rag-lab
+          python -c "
+          import yaml, sys
+          cfg_path = 'experiments/${{ github.event.inputs.experiment }}/config.yaml'
+          with open(cfg_path) as f: cfg = yaml.safe_load(f)
+          cfg['index']['backend'] = '${{ github.event.inputs.index_backend }}'
+          cfg['benchmark']['max_questions'] = int('${{ github.event.inputs.max_questions }}')
+          with open(cfg_path, 'w') as f: yaml.dump(cfg, f)
+          print(f'Config patched: backend={cfg[\"index\"][\"backend\"]}')
+          "
+
+      - name: Run experiment
+        run: |
+          cd rag-lab
+          python -m raglab.run_experiment \
+            --config experiments/${{ github.event.inputs.experiment }}/config.yaml
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.run_id }}
+          path: |
+            rag-lab/out/raglab_out/*.csv
+            rag-lab/out/raglab_out/*.md
+            rag-lab/out/raglab_out/*.jsonl
+          retention-days: 30
+
+      - name: Print summary to job log
+        run: |
+          cd rag-lab
+          python -c "
+          import glob, pandas as pd
+          files = sorted(glob.glob('out/raglab_out/*_scores.csv'))
+          if files:
+              df = pd.read_csv(files[-1])
+              print(df.groupby(['pipeline','source_type'])['overall_score'].mean().unstack().to_string())
+          "
+
+      - name: Comment results on PR (if PR context)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const files = fs.readdirSync('rag-lab/out/raglab_out/').filter(f => f.endsWith('_report.md'));
+            if (files.length > 0) {
+              const report = fs.readFileSync(`rag-lab/out/raglab_out/${files[files.length-1]}`, 'utf8');
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: report.substring(0, 65000)
+              });
+            }

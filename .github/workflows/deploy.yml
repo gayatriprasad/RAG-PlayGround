@@ -1,0 +1,61 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+
+jobs:
+  deploy-frontend:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel environment
+        run: |
+          cd app
+          vercel pull --yes --environment=production \
+            --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build project
+        run: |
+          cd app
+          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel
+        id: deploy
+        run: |
+          cd app
+          URL=$(vercel deploy --prebuilt --prod \
+            --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: $URL"
+
+      - name: Verify deployment
+        run: |
+          sleep 10
+          curl -f "${{ steps.deploy.outputs.url }}" \
+            -H "Accept: text/html" --max-time 30
+          echo "Deployment verified"
+
+  notify-slack:
+    name: Notify on Deploy
+    needs: deploy-frontend
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Post deploy status
+        run: |
+          STATUS="${{ needs.deploy-frontend.result }}"
+          echo "Deploy status: $STATUS"

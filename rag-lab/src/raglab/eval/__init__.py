@@ -8,9 +8,17 @@ from raglab.eval.scorer import (
     LLMJudgeMetric,
     RetrievalRecallMetric,
     AdversarialMetric,
+    OcrQualityMetric,
     BenchmarkScorer,
 )
 from raglab.eval.reporter import ExperimentReporter
+from raglab.eval.agentic_scorer import (
+    StepQualityScorer,
+    TrajectoryScorer,
+    ConsistencyScorer,
+    AgenticEvalScorer,
+)
+from raglab.eval.calibration import UncertaintyCalibrator
 
 __all__ = [
     "BaseMetric",
@@ -18,6 +26,12 @@ __all__ = [
     "LLMJudgeMetric",
     "RetrievalRecallMetric",
     "AdversarialMetric",
+    "OcrQualityMetric",
     "BenchmarkScorer",
     "ExperimentReporter",
+    "StepQualityScorer",
+    "TrajectoryScorer",
+    "ConsistencyScorer",
+    "AgenticEvalScorer",
+    "UncertaintyCalibrator",
 ]

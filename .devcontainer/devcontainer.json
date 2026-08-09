@@ -1,0 +1,14 @@
+{
+  "name": "NeuralBench",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "postCreateCommand": "make setup",
+  "forwardPorts": [3000, 8001, 11434],
+  "portsAttributes": {
+    "3000": { "label": "Next.js frontend" },
+    "8001": { "label": "FastAPI backend" },
+    "11434": { "label": "Ollama" }
+  }
+}

@@ -9,9 +9,30 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from raglab.config import EvalCfg, LLMCfg
-from raglab.types import EvalResult
+from raglab.types import EvalResult, PartialRunError
 
 logger = logging.getLogger(__name__)
+
+
+def check_run_completeness(n_scored: int, n_total: int, min_fraction: float = 0.9) -> bool:
+    """
+    Skill 50G / Rule 32 — assert n_scored/n_total >= min_fraction after
+    scoring. Returns True if the run is complete enough to be treated as a
+    full run; False if it should be marked 'partial' (e.g. mid-eval
+    rate-limiting caused some questions to be skipped). Never silently
+    updates a baseline from a partial run.
+    """
+    if n_total == 0:
+        raise PartialRunError("No questions were scored (n_total == 0).")
+    fraction = n_scored / n_total
+    if fraction < min_fraction:
+        logger.warning(
+            f"Run completeness {fraction:.1%} ({n_scored}/{n_total}) is below "
+            f"the {min_fraction:.0%} threshold — this run should be marked 'partial'."
+        )
+        return False
+    return True
+
 
 
 class BaseMetric(ABC):
@@ -111,13 +132,11 @@ class LLMJudgeMetric(BaseMetric):
         ]
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.llm_cfg.model,
-                messages=messages,
+            answer = self.client.complete(
+                messages,
                 temperature=0.0,
                 max_tokens=10
-            )
-            answer = response.choices[0].message.content.strip().upper()
+            ).strip().upper()
             return answer.startswith("YES")
         except Exception as e:
             logger.warning(f"LLM correctness call failed: {e}")
@@ -143,13 +162,11 @@ class LLMJudgeMetric(BaseMetric):
         ]
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.llm_cfg.model,
-                messages=messages,
+            answer = self.client.complete(
+                messages,
                 temperature=0.0,
                 max_tokens=10
-            )
-            answer = response.choices[0].message.content.strip()
+            ).strip()
             score = float(answer)
             return max(0.0, min(1.0, score))
         except Exception as e:
@@ -187,13 +204,12 @@ class RetrievalRecallMetric(BaseMetric):
             )
             recall_results[str(k)] = found
         
-        # Store in metadata (extend existing chunk metadata for first chunk)
-        if not hasattr(result, '_metadata'):
-            result._metadata = {}
+        # Store in metadata dict
+        if not result.metadata:
+            result.metadata = {}
+        result.metadata["recall_at_k"] = recall_results
         
-        # Use model's extra fields or store via a convention
-        # Since EvalResult doesn't have metadata field, store recall in completeness
-        # if no other metric sets it
+        # Set completeness/answer_correct if not already set by another metric
         if result.completeness is None:
             # Use recall@5 as proxy for completeness
             max_k = max(self.recall_at_k)
@@ -290,6 +306,55 @@ class AdversarialMetric(BaseMetric):
         return result
 
 
+class OcrQualityMetric(BaseMetric):
+    """
+    Character Error Rate (CER) and Word Error Rate (WER) against reference
+    text — Skill 51. Only meaningful when `result.metadata["reference_text"]`
+    is set (e.g. a known-good document used to benchmark parser quality:
+    pdfplumber vs marker vs surya). Silently skips otherwise.
+    """
+
+    def score(self, result: EvalResult) -> EvalResult:
+        if "reference_text" not in result.metadata:
+            return result
+        ref = result.metadata["reference_text"]
+        parsed = result.metadata.get("parsed_text", "")
+        result.metadata["cer"] = self._cer(ref, parsed)
+        result.metadata["wer"] = self._wer(ref, parsed)
+        return result
+
+    def _edit_distance(self, a: list, b: list) -> int:
+        """Levenshtein edit distance via rapidfuzz if available, else a pure
+        Python DP fallback (no hard dependency required)."""
+        try:
+            from rapidfuzz.distance import Levenshtein
+
+            return Levenshtein.distance(a, b)
+        except ImportError:
+            prev = list(range(len(b) + 1))
+            for i, ca in enumerate(a, 1):
+                curr = [i] + [0] * len(b)
+                for j, cb in enumerate(b, 1):
+                    cost = 0 if ca == cb else 1
+                    curr[j] = min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost)
+                prev = curr
+            return prev[-1]
+
+    def _cer(self, ref: str, hyp: str) -> float:
+        """Character Error Rate = edit_distance(ref, hyp) / len(ref)."""
+        if not ref:
+            return 0.0 if not hyp else 1.0
+        return self._edit_distance(list(ref), list(hyp)) / len(ref)
+
+    def _wer(self, ref: str, hyp: str) -> float:
+        """Word Error Rate = edit distance on word tokens / n_ref_words."""
+        ref_words = ref.split()
+        hyp_words = hyp.split()
+        if not ref_words:
+            return 0.0 if not hyp_words else 1.0
+        return self._edit_distance(ref_words, hyp_words) / len(ref_words)
+
+
 class BenchmarkScorer:
     """
     Main scorer that orchestrates multiple metrics.
@@ -320,6 +385,10 @@ class BenchmarkScorer:
                     metrics.append(RetrievalRecallMetric(self.eval_cfg))
                 case "adversarial":
                     metrics.append(AdversarialMetric(self.eval_cfg))
+                case "ocr_quality":
+                    metrics.append(OcrQualityMetric())
+                case "agentic_quality":
+                    pass  # handled separately via eval/agentic_scorer.py (Skill 55), not a per-result metric
                 case _:
                     logger.warning(f"Unknown metric: {m}")
         
@@ -359,8 +428,14 @@ class BenchmarkScorer:
         """
         Convert results to a pandas DataFrame.
         
-        Columns: question_id, source_type, category, pipeline, index_backend,
-                 intent_label, answer_correct, completeness, overall_score
+        Columns include ALL slot selections so you can pivot any way you want:
+        - question_id, question, source_type, category
+        - pipeline, index_backend, agentic_strategy
+        - reranker, cache_mode, intent_label
+        - ground_truth, predicted_answer
+        - answer_correct, completeness, overall_score
+        - recall_at_1, recall_at_3, recall_at_5
+        - latency_ms
         
         Args:
             results: List of scored EvalResult objects
@@ -372,16 +447,42 @@ class BenchmarkScorer:
         
         rows = []
         for r in results:
-            rows.append({
+            row = {
                 "question_id": r.question_id,
+                "question": r.question,
                 "source_type": r.source_type,
                 "category": r.category,
                 "pipeline": r.pipeline,
                 "index_backend": r.index_backend,
                 "intent_label": r.intent_label,
+                "ground_truth": r.ground_truth,
+                "predicted_answer": r.predicted_answer,
                 "answer_correct": r.answer_correct,
                 "completeness": r.completeness,
                 "overall_score": r.overall_score,
-            })
+            }
+            
+            # Extract metadata fields
+            metadata = r.metadata if hasattr(r, 'metadata') and r.metadata else {}
+            
+            # Agentic strategy (from agentic pipeline metadata)
+            row["agentic_strategy"] = metadata.get("strategy", "none")
+            
+            # Reranker type (from metadata if set, otherwise "none")
+            row["reranker"] = metadata.get("reranker", "none")
+            
+            # Cache mode (from metadata if set, otherwise "none")
+            row["cache_mode"] = metadata.get("cache_mode", "none")
+            
+            # Latency (from metadata if set, otherwise 0)
+            row["latency_ms"] = metadata.get("latency_ms", 0)
+            
+            # Recall@k scores (from RetrievalRecallMetric metadata)
+            recall_at_k = metadata.get("recall_at_k", {})
+            row["recall_at_1"] = recall_at_k.get("1", None)
+            row["recall_at_3"] = recall_at_k.get("3", None)
+            row["recall_at_5"] = recall_at_k.get("5", None)
+            
+            rows.append(row)
         
         return pd.DataFrame(rows)

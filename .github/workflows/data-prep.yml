@@ -1,0 +1,55 @@
+name: Download Benchmark Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_types:
+        description: 'Comma-separated source types to download'
+        default: 'confluence,github,jira,slack'
+        required: true
+      max_docs:
+        description: 'Max docs per source type'
+        default: '5000'
+        required: true
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install huggingface-hub datasets
+
+      - name: Download slice
+        run: |
+          cd rag-lab
+          python -c "
+          from raglab.parsers.enterprise_bench import download_bench_slice
+          source_types = '${{ github.event.inputs.source_types }}'.split(',')
+          download_bench_slice(
+              source_types=[s.strip() for s in source_types],
+              out_dir='corpus/raw/',
+              max_docs_per_type=int('${{ github.event.inputs.max_docs }}')
+          )
+          print('Download complete')
+          "
+
+      - name: Upload corpus as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-slice-${{ github.run_id }}
+          path: rag-lab/corpus/raw/
+          retention-days: 7
+
+      - name: Upload questions.jsonl
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-questions
+          path: rag-lab/golden/questions.jsonl
+          retention-days: 30
