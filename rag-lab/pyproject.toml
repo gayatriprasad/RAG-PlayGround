@@ -47,7 +47,7 @@ dependencies = [
 
 # Agents + orchestration
 agents = [
-  "langgraph>=0.1.0",
+  "langgraph>=1.2.10",
   "langchain-core>=0.2.0",
 ]
 
@@ -110,7 +110,7 @@ dev = [
 
 # Everything
 all = [
-  "langgraph>=0.1.0",
+  "langgraph>=1.2.10",
   "langchain-core>=0.2.0",
   "langfuse>=2.0.0",
   "arize-phoenix",
