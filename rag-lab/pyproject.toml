@@ -61,7 +61,7 @@ observability = [
 
 # Additional LLM providers
 providers = [
-  "anthropic>=0.25.0",
+  "anthropic>=0.120.2",
   "groq>=0.5.0",
   "google-generativeai",
 ]
@@ -116,7 +116,7 @@ all = [
   "arize-phoenix",
   "traceloop-sdk",
   "fastmcp",
-  "anthropic>=0.25.0",
+  "anthropic>=0.120.2",
   "groq>=0.5.0",
   "google-generativeai",
   "faiss-cpu>=1.7.0",
