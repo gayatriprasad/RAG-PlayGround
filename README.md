@@ -35,7 +35,7 @@ The flow: corpus loaded from `/upload` → intent classified as COMPLEX → agen
 
 - *"Every comparison in this system produces a confidence interval and a significance test — not just a delta."* Demonstrates statistical rigor as a first-class design constraint, not an afterthought.
 - *"The pipeline is fully config-driven — swapping the vector DB, embedding model, or LLM provider is a one-line YAML change, never a code change."* Demonstrates the strategy-pattern architecture and the Module Responsibility Matrix.
-- *"The failure modes are enumerated up front — stale index, judge drift, partial runs — and each has a concrete guard in code, not just a comment."* Demonstrates the Failure Mode Register discipline and defensive engineering under real constraints (see `.github/copilot-instructions.md`).
+- *"The failure modes are enumerated up front — stale index, judge drift, partial runs — and each has a concrete guard in code, not just a comment."* Demonstrates the Failure Mode Register discipline and defensive engineering under real constraints.
 
 ### Core path health check
 
@@ -213,7 +213,7 @@ make dev     # API on :8001 + frontend on :3000
 make test    # 22/22 tests (≥80% coverage gate)
 ```
 
-Open [http://localhost:3000/playground](http://localhost:3000/playground). Full setup details in [CONTRIBUTING.md](CONTRIBUTING.md).
+Open [http://localhost:3000/playground](http://localhost:3000/playground). Full setup details in [CONTRIBUTING.md](docs/project/CONTRIBUTING.md).
 
 ### 2. Manual setup
 
@@ -441,7 +441,7 @@ Expose RAG tools to any MCP-compatible client:
 ```
 Tools available: `retrieve` · `ask` · `index_status` · `list_experiments` · `run_eval`
 
-See [MCP_SETUP.md](MCP_SETUP.md) for full configuration guide.
+See [MCP_SETUP.md](docs/project/MCP_SETUP.md) for full configuration guide.
 
 ---
 
@@ -450,10 +450,10 @@ See [MCP_SETUP.md](MCP_SETUP.md) for full configuration guide.
 ```
 RAG-PlayGround/  (rename target: NeuralBench)
 ├── CLAUDE.md                        # Agent memory — read by Claude Code natively
-├── ARCHITECTURE.md                  # Layered design, data flow, error taxonomy
-├── CONTRIBUTING.md                  # Definition of Done, responsibility matrix
 ├── Makefile                         # setup / dev / test / lint / eval
-├── docs/adr/                        # Architecture Decision Records (001–010)
+├── docs/
+│   ├── adr/                         # Architecture Decision Records (001–010)
+│   └── project/                     # ARCHITECTURE, CONTRIBUTING, SECURITY, CHANGELOG, MCP_SETUP, OLLAMA_FIXES, skill summaries
 ├── .github/
 │   ├── copilot-instructions.md      # Copilot persistent context (local-only, gitignored)
 │   ├── copilot-skills.md            # Skills, paste-into-Copilot-Chat prompts (local-only)
@@ -533,8 +533,12 @@ Key choices are documented as Architecture Decision Records in [`docs/adr/`](doc
 ## Documentation
 
 - [Test Coverage Report](rag-lab/tests/TEST_COVERAGE_REPORT.md)
-- [Ollama Integration Notes](OLLAMA_FIXES.md)
-- [MCP Setup Guide](MCP_SETUP.md)
+- [Architecture](docs/project/ARCHITECTURE.md)
+- [Contributing](docs/project/CONTRIBUTING.md)
+- [Security](docs/project/SECURITY.md)
+- [Changelog](docs/project/CHANGELOG.md)
+- [Ollama Integration Notes](docs/project/OLLAMA_FIXES.md)
+- [MCP Setup Guide](docs/project/MCP_SETUP.md)
 - [Architecture Decision Records](docs/adr/)
 
 ---
