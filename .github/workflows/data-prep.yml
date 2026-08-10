@@ -41,14 +41,14 @@ jobs:
           "
 
       - name: Upload corpus as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: corpus-slice-${{ github.run_id }}
           path: rag-lab/corpus/raw/
           retention-days: 7
 
       - name: Upload questions.jsonl
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: golden-questions
           path: rag-lab/golden/questions.jsonl
