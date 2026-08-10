@@ -46,3 +46,10 @@ rag-lab/out/chroma/
 # Cache
 .cache/
 diskcache/
+
+# Local-only Copilot specs and status doc — not pushed to remote
+.github/copilot-actions.md
+.github/copilot-hooks.md
+.github/copilot-instructions.md
+.github/copilot-skills.md
+IMPLEMENTATION_STATUS.md

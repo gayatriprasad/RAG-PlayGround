@@ -1,4 +1,4 @@
-# NeuralBench
+# RAG-PlayGround
 
 ## What this repo is
 A RAG research playground benchmarking retrieval strategies against
