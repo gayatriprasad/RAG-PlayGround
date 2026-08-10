@@ -48,7 +48,7 @@ dependencies = [
 # Agents + orchestration
 agents = [
   "langgraph>=0.1.0",
-  "langchain-core>=0.2.0",
+  "langchain-core>=1.5.3",
 ]
 
 # Observability
@@ -111,7 +111,7 @@ dev = [
 # Everything
 all = [
   "langgraph>=0.1.0",
-  "langchain-core>=0.2.0",
+  "langchain-core>=1.5.3",
   "langfuse>=2.0.0",
   "arize-phoenix",
   "traceloop-sdk",
