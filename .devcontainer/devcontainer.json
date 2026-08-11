@@ -5,6 +5,7 @@
     "ghcr.io/devcontainers/features/node:1": { "version": "20" }
   },
   "postCreateCommand": "make setup",
+  "postStartCommand": "make ollama-serve",
   "forwardPorts": [3000, 8001, 11434],
   "portsAttributes": {
     "3000": { "label": "Next.js frontend" },
