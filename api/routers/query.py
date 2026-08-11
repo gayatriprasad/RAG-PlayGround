@@ -22,7 +22,16 @@ if str(_RAG_LAB_SRC) not in sys.path:
     sys.path.insert(0, str(_RAG_LAB_SRC))
 
 from raglab.classifiers import get_classifier
-from raglab.config import Config, IndexCfg, IntentCfg, LLMCfg, NetworkCfg, RetrieveCfg
+from raglab.config import (
+    Config,
+    IndexCfg,
+    IntentCfg,
+    LLMCfg,
+    NetworkCfg,
+    RetrieveCfg,
+    PRESET_FIELD_MAP,
+    apply_preset,
+)
 from raglab.index import get_index
 from raglab.net.rate_limit import limiter
 from raglab.pipelines import AgenticRAGPipeline, NaiveRAGPipeline
@@ -107,6 +116,27 @@ def _load_config(config_path: Path) -> Config:
     return Config(**raw)
 
 
+def _apply_query_overrides(cfg: Config, req: QueryRequest) -> Config:
+    """Apply query-time overrides using the same field map presets use.
+
+    `chunk_strategy` is intentionally excluded: chunking happens at build time,
+    so changing it on a live query against an already-built index is a no-op.
+    """
+    live_overrides = {
+        key: getattr(req, key, None)
+        for key in PRESET_FIELD_MAP
+        if key != "chunk_strategy" and getattr(req, key, None) not in (None, "none")
+    }
+    if live_overrides:
+        cfg = apply_preset(cfg, live_overrides)
+
+    # Standalone rerank toggle remains explicit (not a mapped preset key).
+    if req.rerank:
+        cfg.retrieve.rerank = True
+
+    return cfg
+
+
 # ─── Endpoint ─────────────────────────────────────────────────────────────────
 
 
@@ -127,22 +157,7 @@ async def query(request: Request, req: QueryRequest):
     config_path = _find_experiment_config(req.experiment)
     cfg = _load_config(config_path)
 
-    # Apply request overrides
-    if req.top_k:
-        cfg.retrieve.top_k = req.top_k
-    if req.rerank:
-        cfg.retrieve.rerank = True
-    if req.reranker and req.reranker != "none":
-        cfg.retrieve.rerank = True
-        cfg.retrieve.reranker = req.reranker
-    if req.index_backend:
-        cfg.index.backend = req.index_backend
-    if req.intent_mode:
-        cfg.intent.mode = req.intent_mode
-    if req.llm_provider:
-        cfg.llm.provider = req.llm_provider
-    if req.llm_model:
-        cfg.llm.model = req.llm_model
+    cfg = _apply_query_overrides(cfg, req)
 
     # Disable caching for live API queries to avoid stale results
     cfg.retrieve.cache_mode = "none"
