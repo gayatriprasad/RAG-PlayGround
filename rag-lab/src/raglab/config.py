@@ -1,8 +1,11 @@
 # config.py — full extended version
 
 from __future__ import annotations
+from typing import Any, Dict, List, Literal, Optional, Tuple
+
 from pydantic import BaseModel
-from typing import List, Literal, Optional
+
+from raglab.types import ConfigError
 
 class ChunkCfg(BaseModel):
     strategy: Literal["fixed", "sentence", "semantic", "recursive", "none"] = "fixed"
@@ -260,3 +263,114 @@ class Config(BaseModel):
     improvement: ImprovementCfg = ImprovementCfg()  # Skill 46
     observability: ObservabilityCfg = ObservabilityCfg()  # Skill 47C
     rlm: RLMCfg = RLMCfg()  # Skill 54
+
+
+# ─── Skill 58: Preset-aware config loading ─────────────────────────────────
+#
+# `rag-lab/presets/*.yaml` files (beginner.yaml, max_recall.yaml, ...) are
+# flat, one-click *fragments* — a handful of top-level keys plus a name and
+# description. They were never meant to satisfy the full `Config` contract
+# on their own (they have no `experiment` or `golden` sections, both of
+# which are required). Loading one directly via `Config(**raw)` therefore
+# raises a wall of confusing pydantic `ValidationError`s.
+#
+# `PRESET_FIELD_MAP` declares exactly which flat preset key maps to which
+# nested Config field. `apply_preset()` overlays a preset fragment onto an
+# already-valid base `Config`. `is_preset_shaped()` lets callers detect a
+# preset file being mistakenly passed where a full config is expected, so
+# they can raise one clear `ConfigError` instead of a raw pydantic crash.
+
+PRESET_FIELD_MAP: Dict[str, Tuple[str, str]] = {
+    "index_backend": ("index", "backend"),
+    "chunk_strategy": ("chunk", "strategy"),
+    "top_k": ("retrieve", "top_k"),
+    "reranker": ("retrieve", "reranker"),
+    "intent_mode": ("intent", "mode"),
+    "llm_provider": ("llm", "provider"),
+    "llm_model": ("llm", "model"),
+}
+
+# Sections that a full experiment Config must have but a preset fragment
+# never provides. Used by is_preset_shaped() to recognize preset files.
+_CONFIG_REQUIRED_SECTIONS = ("experiment", "golden")
+
+
+def is_preset_shaped(raw: Dict[str, Any]) -> bool:
+    """Return True if `raw` looks like a one-click preset fragment rather
+    than a full experiment Config: it is missing the required top-level
+    sections (`experiment`, `golden`) but contains at least one of the
+    flat keys a preset is known to carry.
+    """
+    if not isinstance(raw, dict):
+        return False
+    missing_required = any(section not in raw for section in _CONFIG_REQUIRED_SECTIONS)
+    has_preset_keys = any(key in raw for key in PRESET_FIELD_MAP)
+    return missing_required and has_preset_keys
+
+
+def apply_preset(cfg: "Config", preset: Dict[str, Any]) -> "Config":
+    """Apply a flat preset fragment (as loaded from `rag-lab/presets/*.yaml`)
+    on top of an already-valid base `Config`, returning a new `Config` with
+    the requested fields overridden. Unknown/metadata keys (`name`,
+    `description`) are ignored. Never mutates `cfg` in place.
+    """
+    new_cfg = cfg.model_copy(deep=True)
+    for key, value in preset.items():
+        if key not in PRESET_FIELD_MAP:
+            continue
+        section_name, field_name = PRESET_FIELD_MAP[key]
+        section = getattr(new_cfg, section_name)
+        setattr(section, field_name, value)
+        # Selecting a real reranker implies reranking should be turned on.
+        if section_name == "retrieve" and field_name == "reranker" and value not in (None, "none"):
+            new_cfg.retrieve.rerank = True
+    return new_cfg
+
+
+def load_config_with_preset(
+    config_path: str, preset: Optional[str] = None, presets_dir: Optional[str] = None
+) -> "Config":
+    """Load a full base Config from `config_path`, optionally layering a
+    preset fragment on top. Raises `ConfigError` with an actionable message
+    if `config_path` itself looks like a preset fragment (the historical
+    "the bug" this skill fixes) or if a requested preset file can't be found.
+    """
+    import yaml
+    from pathlib import Path
+
+    path = Path(config_path)
+    if not path.exists():
+        raise ConfigError(f"Config file not found: {path}")
+
+    with open(path, "r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+
+    if is_preset_shaped(raw):
+        preset_keys = ", ".join(k for k in PRESET_FIELD_MAP if k in raw)
+        raise ConfigError(
+            f"'{path}' looks like a one-click preset fragment (found keys: "
+            f"{preset_keys}), not a full experiment Config — it is missing "
+            f"required sections {_CONFIG_REQUIRED_SECTIONS}. Presets only "
+            f"override a handful of fields and cannot be used as --config "
+            f"directly.\nFix: pass a full base config via --config and layer "
+            f"the preset on top with --preset, e.g.\n"
+            f"  raglab-run --config experiments/02_retrieval_comparison/config.yaml --preset {path.stem}"
+        )
+
+    cfg = Config(**raw)
+
+    if preset:
+        preset_path = Path(preset)
+        if not preset_path.exists():
+            candidate_dir = Path(presets_dir) if presets_dir else Path(__file__).resolve().parents[2] / "presets"
+            candidate = candidate_dir / f"{preset}.yaml"
+            if candidate.exists():
+                preset_path = candidate
+            else:
+                raise ConfigError(f"Preset file not found: {preset} (looked in {candidate})")
+
+        with open(preset_path, "r", encoding="utf-8") as f:
+            preset_raw = yaml.safe_load(f) or {}
+        cfg = apply_preset(cfg, preset_raw)
+
+    return cfg

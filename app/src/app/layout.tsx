@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { MotionConfig } from "framer-motion";
 import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/layout/sidebar";
 import { StatusBar } from "@/components/layout/status-bar";
@@ -29,13 +30,17 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full`}>
       <body className="min-h-full flex antialiased bg-background text-foreground">
-        <Sidebar />
-        <main className="flex-1 min-h-0 flex flex-col">
-          <StatusBar />
-          <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
-        </main>
-        <Toaster />
-        <OnboardingModal />
+        {/* Skill 36C: framer-motion respects the OS-level prefers-reduced-motion
+            setting for every motion.* component in the tree, automatically. */}
+        <MotionConfig reducedMotion="user">
+          <Sidebar />
+          <main className="flex-1 min-h-0 flex flex-col">
+            <StatusBar />
+            <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+          </main>
+          <Toaster />
+          <OnboardingModal />
+        </MotionConfig>
       </body>
     </html>
   );

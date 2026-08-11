@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Info, X } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { toFriendlyError } from "@/lib/errors";
 
@@ -75,6 +76,7 @@ function distance(a: { x: number; y: number }, b: { x: number; y: number }): num
 export default function VizPage() {
   const [projectionMethod, setProjectionMethod] = useState("umap");
   const [colorBy, setColorBy] = useState<"source_type" | "trust_score">("source_type");
+  const [showInfoCard, setShowInfoCard] = useState(true);
   const [query, setQuery] = useState("");
   const [embeddingData, setEmbeddingData] = useState<EmbeddingData | null>(null);
   const [loadingEmbedding, setLoadingEmbedding] = useState(false);
@@ -193,6 +195,31 @@ export default function VizPage() {
 
         {/* Tab 1: Embedding Space */}
         <TabsContent value="embedding" className="space-y-4">
+          {showInfoCard && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="pt-5 flex items-start gap-3">
+                <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <div className="flex-1 text-sm text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">What am I looking at?</p>
+                  <p>
+                    Each point is a document chunk, projected from high-dimensional embedding
+                    space down to 2D using {projectionMethod.toUpperCase()}. Points that sit close
+                    together were embedded as semantically similar by the model — clusters often
+                    correspond to a source type or topic. If you run a query, it appears as a
+                    highlighted point, and its nearest neighbours are the chunks most likely to be
+                    retrieved for that question.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowInfoCard(false)}
+                  aria-label="Dismiss explanation"
+                  className="text-muted-foreground hover:text-foreground shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>2D Embedding Projection</CardTitle>

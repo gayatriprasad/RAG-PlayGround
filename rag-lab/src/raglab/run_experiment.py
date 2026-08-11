@@ -23,12 +23,11 @@ from pathlib import Path
 from typing import List, Optional
 
 import typer
-import yaml
 from tqdm import tqdm
 
 from raglab.chunkers import get_chunker
 from raglab.classifiers import get_classifier
-from raglab.config import Config
+from raglab.config import Config, load_config_with_preset
 from raglab.eval import BenchmarkScorer, ExperimentReporter
 from raglab.eval.scorer import check_run_completeness
 from raglab.hooks import get_default_registry
@@ -41,7 +40,7 @@ from raglab.parsers.enterprise_bench import (
 from raglab.parsers.normalizer import DocumentNormalizer
 from raglab.pipelines import AgenticRAGPipeline, NaiveRAGPipeline
 from raglab.rerankers import get_reranker
-from raglab.types import Chunk, Document, EvalResult, Question
+from raglab.types import Chunk, ConfigError, Document, EvalResult, Question
 from raglab.utils.tracer import save_traces
 
 logger = logging.getLogger(__name__)
@@ -49,16 +48,18 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False)
 
 
-def _load_config(config_path: str) -> Config:
-    """Load and validate config from YAML file."""
-    path = Path(config_path)
-    if not path.exists():
-        raise typer.BadParameter(f"Config file not found: {path}")
+def _load_config(config_path: str, preset: Optional[str] = None) -> Config:
+    """Load and validate config from YAML file.
 
-    with open(path, "r", encoding="utf-8") as f:
-        raw = yaml.safe_load(f)
-
-    return Config(**raw)
+    Skill 58: if `config_path` looks like a one-click preset fragment
+    (rag-lab/presets/*.yaml) rather than a full experiment Config, this
+    raises a clear ConfigError instead of a raw pydantic ValidationError.
+    Optionally layer a `--preset` fragment on top of a valid base config.
+    """
+    try:
+        return load_config_with_preset(config_path, preset=preset)
+    except ConfigError as e:
+        raise typer.BadParameter(str(e))
 
 
 def _load_corpus_and_questions(cfg: Config):
@@ -115,7 +116,14 @@ def main(
         ...,
         "--config",
         "-c",
-        help="Path to experiment config.yaml",
+        help="Path to a full experiment config.yaml (not a one-click preset fragment)",
+    ),
+    preset: Optional[str] = typer.Option(
+        None,
+        "--preset",
+        "-p",
+        help="Optional one-click preset id (e.g. 'beginner') or path to a preset "
+        "yaml under rag-lab/presets/ to layer on top of --config",
     ),
     download_data: bool = typer.Option(
         False,
@@ -141,7 +149,9 @@ def main(
 
     # Step 1: Load config
     logger.info(f"Loading config from: {config}")
-    cfg = _load_config(config)
+    cfg = _load_config(config, preset=preset)
+    if preset:
+        logger.info(f"Applied preset: {preset}")
     logger.info(f"Experiment: {cfg.experiment.name}")
 
     # Step 2: Optional data download

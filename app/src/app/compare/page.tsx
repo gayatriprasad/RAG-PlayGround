@@ -159,7 +159,7 @@ export default function ComparePage() {
                 if (e.key === "Enter" && e.metaKey) handleCompare();
               }}
             />
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
               <div className="flex-1">
                 <Label className="text-xs text-muted-foreground mb-1 block">Left Pipeline</Label>
                 <Select value={leftPreset} onValueChange={(v) => v && setLeftPreset(v)}>
@@ -171,7 +171,7 @@ export default function ComparePage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-col items-center gap-1 mt-5">
+              <div className="flex flex-row md:flex-col items-center gap-1 md:mt-5">
                 <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
                 <Button
                   type="button"
@@ -260,7 +260,7 @@ export default function ComparePage() {
         )}
 
         {/* Side-by-side Results */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="shadow-sm border-border">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">{PRESETS[leftPreset].label}</CardTitle>

@@ -68,6 +68,25 @@ interface SavedRun {
   saved_at: number;
 }
 
+interface SignificanceResult {
+  config_a: string;
+  config_b: string;
+  metric: string;
+  mean_a: number;
+  mean_b: number;
+  delta: number;
+  ci_lower: number;
+  ci_upper: number;
+  p_value: number;
+  p_value_corrected: number | null;
+  effect_size: number;
+  test_used: string;
+  n_questions: number;
+  significant: boolean;
+  practically_significant: boolean;
+  verdict: string;
+}
+
 const CHART_COLORS = ["#0066CC", "#34C759", "#FF9500", "#AF52DE", "#FF2D55"];
 const SAVED_RUNS_KEY = "nb_saved_runs";
 const EXPORT_FORMATS: { format: "markdown" | "csv" | "html" | "json"; label: string }[] = [
@@ -96,6 +115,10 @@ export default function BenchmarkPage() {
   // Baseline comparison (Skill 39A)
   const [baselineExp, setBaselineExp] = useState<string>("");
   const [baselineResults, setBaselineResults] = useState<BenchmarkResults | null>(null);
+
+  // Statistical significance vs baseline (Skill 43)
+  const [significance, setSignificance] = useState<SignificanceResult | null>(null);
+  const [significanceError, setSignificanceError] = useState<string | null>(null);
 
   // Failure analysis table (Skill 39C)
   const [showOnlyFailures, setShowOnlyFailures] = useState(false);
@@ -136,6 +159,23 @@ export default function BenchmarkPage() {
       .then(setBaselineResults)
       .catch(() => setBaselineResults(null));
   }, [baselineExp]);
+
+  useEffect(() => {
+    if (!baselineExp || !selectedExp || baselineExp === selectedExp) {
+      setSignificance(null);
+      setSignificanceError(null);
+      return;
+    }
+    setSignificanceError(null);
+    apiGet<SignificanceResult>(
+      `/benchmark/compare?baseline=${encodeURIComponent(baselineExp)}&candidate=${encodeURIComponent(selectedExp)}&metric=overall_score`
+    )
+      .then(setSignificance)
+      .catch((e) => {
+        setSignificance(null);
+        setSignificanceError(toFriendlyError(e).title);
+      });
+  }, [baselineExp, selectedExp]);
 
   function saveCurrentRun() {
     if (!results) return;
@@ -312,7 +352,7 @@ export default function BenchmarkPage() {
                         <p className="text-2xl font-semibold">
                           {(results.average_score * 100).toFixed(1)}%
                         </p>
-                        {deltaVsBaseline !== null && (
+                        {deltaVsBaseline !== null && !significance && (
                           <Badge
                             variant="outline"
                             className={deltaVsBaseline >= 0 ? "text-emerald-600 border-emerald-600/30" : "text-destructive border-destructive/30"}
@@ -321,10 +361,34 @@ export default function BenchmarkPage() {
                             {deltaVsBaseline.toFixed(1)} pts vs baseline
                           </Badge>
                         )}
+                        {significance && (
+                          <Badge
+                            variant="outline"
+                            className={
+                              significance.practically_significant
+                                ? significance.delta < 0
+                                  ? "text-emerald-600 border-emerald-600/30"
+                                  : "text-destructive border-destructive/30"
+                                : "text-muted-foreground border-border"
+                            }
+                          >
+                            {significance.significant ? "significant" : "not significant"} (p=
+                            {significance.p_value.toFixed(3)})
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Avg Score{deltaVsBaseline !== null ? " (delta not statistically tested)" : ""}
+                        Avg Score
+                        {deltaVsBaseline !== null && !significance ? " (delta not statistically tested)" : ""}
                       </p>
+                      {significance && (
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md">
+                          {significance.verdict} · 95% CI [{(significance.ci_lower * 100).toFixed(1)}, {(significance.ci_upper * 100).toFixed(1)}] pts · n={significance.n_questions} · test={significance.test_used}
+                        </p>
+                      )}
+                      {significanceError && (
+                        <p className="text-xs text-muted-foreground mt-1">{significanceError}</p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -559,7 +623,7 @@ export default function BenchmarkPage() {
                           {new Date(run.saved_at).toLocaleString()}
                         </span>
                       </button>
-                      <Button variant="ghost" size="sm" onClick={() => deleteSavedRun(run.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => deleteSavedRun(run.id)} aria-label={`Delete saved run "${run.name}"`}>
                         <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                       </Button>
                     </div>

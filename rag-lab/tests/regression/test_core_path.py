@@ -160,3 +160,108 @@ def test_10_reproducibility_same_config_same_seed_same_result():
     ci1 = bootstrap_ci(values_a, cfg.stats)
     ci2 = bootstrap_ci(values_a, cfg.stats)
     assert ci1 == ci2, "Bootstrap CI must be deterministic given a fixed seed (reproducibility NFR)"
+
+
+# ─── Skill 58: preset-aware config loading ─────────────────────────────────
+
+_PRESETS_DIR = Path(__file__).resolve().parents[2] / "presets"
+
+
+def test_11_all_presets_are_detected_as_preset_shaped():
+    """Every shipped preset fragment must be recognized as preset-shaped (i.e.
+    it is missing 'experiment'/'golden' and carries at least one flat key)."""
+    import yaml
+
+    from raglab.config import is_preset_shaped
+
+    preset_files = sorted(_PRESETS_DIR.glob("*.yaml"))
+    assert len(preset_files) >= 5, "expected the 5 shipped presets to exist"
+    for path in preset_files:
+        raw = yaml.safe_load(path.read_text())
+        assert is_preset_shaped(raw), f"{path.name} should be detected as preset-shaped"
+
+
+def test_12_loading_a_preset_directly_as_config_raises_clear_config_error():
+    """The historical bug: `raglab-run --config presets/beginner.yaml` must fail
+    with one clear ConfigError, not a wall of pydantic ValidationErrors."""
+    from raglab.config import load_config_with_preset
+    from raglab.types import ConfigError
+
+    beginner = _PRESETS_DIR / "beginner.yaml"
+    with pytest.raises(ConfigError, match="preset fragment"):
+        load_config_with_preset(str(beginner))
+
+
+def test_13_apply_preset_overrides_every_mapped_field():
+    """apply_preset() must correctly overlay every PRESET_FIELD_MAP field onto
+    a base Config without mutating the original."""
+    from raglab.config import PRESET_FIELD_MAP, apply_preset
+
+    base = _make_config()
+    preset = {
+        "name": "Max Recall",
+        "description": "ignored metadata",
+        "index_backend": "hybrid_rrf",
+        "chunk_strategy": "semantic",
+        "top_k": 10,
+        "reranker": "cross_encoder",
+        "intent_mode": "hybrid",
+        "llm_provider": "openai",
+        "llm_model": "gpt-4o-mini",
+    }
+    new_cfg = apply_preset(base, preset)
+
+    assert new_cfg.index.backend == "hybrid_rrf"
+    assert new_cfg.chunk.strategy == "semantic"
+    assert new_cfg.retrieve.top_k == 10
+    assert new_cfg.retrieve.reranker == "cross_encoder"
+    assert new_cfg.retrieve.rerank is True  # selecting a real reranker implies rerank=True
+    assert new_cfg.intent.mode == "hybrid"
+    assert new_cfg.llm.provider == "openai"
+    assert new_cfg.llm.model == "gpt-4o-mini"
+    # original config must be untouched (apply_preset never mutates in place)
+    assert base.index.backend == "chroma"
+    assert base.retrieve.top_k == 5
+    # every PRESET_FIELD_MAP key was exercised by this test
+    assert set(PRESET_FIELD_MAP) == {
+        "index_backend", "chunk_strategy", "top_k", "reranker",
+        "intent_mode", "llm_provider", "llm_model",
+    }
+
+
+def test_14_all_presets_load_via_run_experiment_style_call(tmp_path):
+    """Each shipped preset must successfully layer onto a full base config,
+    mirroring `raglab-run --config <base> --preset <preset_id>`."""
+    import yaml
+
+    from raglab.config import load_config_with_preset
+
+    base_config = {
+        "experiment": {"name": "preset_smoke_test", "corpus_glob": [], "representations": ["chroma"]},
+        "golden": {"path": "./golden/questions.jsonl"},
+    }
+    base_path = tmp_path / "base_config.yaml"
+    base_path.write_text(yaml.safe_dump(base_config))
+
+    for preset_path in sorted(_PRESETS_DIR.glob("*.yaml")):
+        cfg = load_config_with_preset(str(base_path), preset=preset_path.stem, presets_dir=str(_PRESETS_DIR))
+        assert cfg.experiment.name == "preset_smoke_test"
+
+
+def test_15_missing_preset_raises_clear_config_error():
+    """Requesting a nonexistent preset must raise ConfigError, not a bare FileNotFoundError."""
+    from raglab.config import load_config_with_preset
+    from raglab.types import ConfigError
+
+    base_config = {
+        "experiment": {"name": "x", "corpus_glob": [], "representations": ["chroma"]},
+        "golden": {"path": "./golden/questions.jsonl"},
+    }
+    import yaml
+    tmp = Path(__file__).resolve().parent / "_tmp_missing_preset_base.yaml"
+    tmp.write_text(yaml.safe_dump(base_config))
+    try:
+        with pytest.raises(ConfigError, match="not found"):
+            load_config_with_preset(str(tmp), preset="does_not_exist", presets_dir=str(_PRESETS_DIR))
+    finally:
+        tmp.unlink(missing_ok=True)

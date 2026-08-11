@@ -155,3 +155,76 @@ async def benchmark_calibration(
         "curve": curve.model_dump(),
         "diagram": diagram,
     }
+
+
+def _load_results_csv(experiment: str) -> Any:
+    import pandas as pd
+
+    result_csv = _OUT_DIR / experiment / f"{experiment}_results.csv"
+    if not result_csv.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"No results found for experiment '{experiment}' at {result_csv}",
+        )
+    try:
+        return pd.read_csv(result_csv)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read results CSV: {e}")
+
+
+@router.get("/benchmark/compare")
+async def benchmark_compare(
+    baseline: str = Query(..., description="Baseline experiment name"),
+    candidate: str = Query(..., description="Candidate experiment name to compare against baseline"),
+    metric: str = Query(
+        "overall_score",
+        description="Metric column to compare: overall_score | answer_correct | completeness",
+    ),
+):
+    """Skill 43 — statistical significance comparison between two experiments'
+    scored results. Wraps raglab.eval.significance.compare_from_records() so the
+    UI never has to report a raw percentage delta without a CI + p-value + verdict.
+    """
+    from raglab.config import StatsCfg
+    from raglab.eval.significance import compare_from_records
+
+    if metric not in ("overall_score", "answer_correct", "completeness"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported metric '{metric}'. Use overall_score, answer_correct, or completeness.",
+        )
+
+    df_a = _load_results_csv(baseline)
+    df_b = _load_results_csv(candidate)
+
+    if metric not in df_a.columns or metric not in df_b.columns:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Metric '{metric}' not present in one or both experiments' results CSV.",
+        )
+
+    records_a = df_a.dropna(subset=[metric]).to_dict(orient="records")
+    records_b = df_b.dropna(subset=[metric]).to_dict(orient="records")
+
+    if not records_a or not records_b:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No scored rows for metric '{metric}' in one or both experiments.",
+        )
+
+    try:
+        result = compare_from_records(
+            records_a,
+            records_b,
+            metric,  # type: ignore[arg-type]
+            StatsCfg(),
+            config_a_name=baseline,
+            config_b_name=candidate,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot compare '{baseline}' vs '{candidate}': {e}",
+        )
+
+    return result.model_dump()

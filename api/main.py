@@ -34,6 +34,7 @@ from api.routers import (
     health,
     improve,
     presets,
+    prompt_lab,
     query,
     upload,
     viz,
@@ -83,6 +84,7 @@ app.include_router(presets.router)
 app.include_router(corpus.router)
 app.include_router(improve.router)
 app.include_router(annotate.router)
+app.include_router(prompt_lab.router)
 
 
 @app.on_event("shutdown")

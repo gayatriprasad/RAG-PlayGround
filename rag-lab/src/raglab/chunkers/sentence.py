@@ -23,14 +23,18 @@ class SentenceChunker(BaseChunker):
     def __init__(self, cfg: ChunkCfg):
         """
         Initialize SentenceChunker with configuration.
-        
+
+        Sentence boundary detection falls back through three tiers:
+        1. spacy `en_core_web_sm` (best quality, needs model download)
+        2. spacy.blank("en") + sentencizer (spacy installed, no model)
+        3. NLTK `punkt` sent_tokenize (spacy not installed at all)
+
         Args:
             cfg: ChunkCfg with chunk_tokens setting
         """
         self.cfg = cfg
         self.encoding = tiktoken.get_encoding("cl100k_base")
-        
-        # Load spacy model
+
         try:
             import spacy
             try:
@@ -45,15 +49,56 @@ class SentenceChunker(BaseChunker):
                 # Add sentencizer component for basic sentence splitting
                 if "sentencizer" not in self.nlp.pipe_names:
                     self.nlp.add_pipe("sentencizer")
-            
-            logger.info(f"SentenceChunker initialized: max {cfg.chunk_tokens} tokens per chunk")
+
+            self._backend = "spacy"
+            logger.info(f"SentenceChunker initialized (spacy): max {cfg.chunk_tokens} tokens per chunk")
+        except ImportError:
+            logger.warning(
+                "spacy not installed. Falling back to NLTK 'punkt' sentence "
+                "tokenizer. For higher-quality sentence boundaries install spacy: "
+                "pip install spacy && python -m spacy download en_core_web_sm"
+            )
+            self.nlp = None
+            self._backend = "nltk"
+            self._init_nltk_fallback()
+            logger.info(f"SentenceChunker initialized (nltk fallback): max {cfg.chunk_tokens} tokens per chunk")
+
+    def _init_nltk_fallback(self) -> None:
+        """Ensure NLTK's punkt tokenizer data is available, raising a clear
+        ImportError if NLTK itself isn't installed either."""
+        try:
+            import nltk
         except ImportError:
             logger.error(
-                "spacy not installed. Install with: pip install spacy && "
-                "python -m spacy download en_core_web_sm"
+                "Neither spacy nor nltk is installed. Install one to use the "
+                "'sentence' chunking strategy: pip install spacy && "
+                "python -m spacy download en_core_web_sm, or pip install nltk"
             )
-            raise ImportError("spacy is required for SentenceChunker")
-    
+            raise ImportError("spacy or nltk is required for SentenceChunker")
+
+        for resource in ("tokenizers/punkt_tab", "tokenizers/punkt"):
+            try:
+                nltk.data.find(resource)
+                return
+            except LookupError:
+                continue
+
+        logger.info("Downloading NLTK 'punkt' tokenizer data...")
+        try:
+            nltk.download("punkt_tab", quiet=True)
+            nltk.download("punkt", quiet=True)
+        except Exception as e:
+            logger.warning(f"Could not download NLTK punkt data automatically: {e}")
+
+    def _split_sentences(self, text: str) -> List[str]:
+        """Split text into sentences using whichever backend was initialized."""
+        if self._backend == "spacy":
+            spacy_doc = self.nlp(text)
+            return [sent.text.strip() for sent in spacy_doc.sents if sent.text.strip()]
+
+        from nltk.tokenize import sent_tokenize
+        return [s.strip() for s in sent_tokenize(text) if s.strip()]
+
     def _count_tokens(self, text: str) -> int:
         """Count tokens in text using tiktoken."""
         return len(self.encoding.encode(text))
@@ -68,11 +113,8 @@ class SentenceChunker(BaseChunker):
         Returns:
             List of Chunk objects
         """
-        # Process document with spacy
-        spacy_doc = self.nlp(doc.content)
-        
-        # Extract sentences
-        sentences = [sent.text.strip() for sent in spacy_doc.sents if sent.text.strip()]
+        # Split into sentences using the initialized backend (spacy or nltk)
+        sentences = self._split_sentences(doc.content)
         
         if not sentences:
             logger.warning(f"Document {doc.id} has no sentences")

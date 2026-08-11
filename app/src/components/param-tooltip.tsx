@@ -11,7 +11,10 @@ export function ParamTooltip({ param }: { param: string }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger className="inline-flex align-middle text-muted-foreground hover:text-foreground outline-none">
+      <TooltipTrigger
+        className="inline-flex align-middle text-muted-foreground hover:text-foreground outline-none"
+        aria-label={`Learn more about ${param}`}
+      >
         <InfoIcon className="size-3.5" />
       </TooltipTrigger>
       <TooltipContent>

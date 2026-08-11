@@ -13,6 +13,16 @@ export interface CitableChunk {
 
 const CITATION_RE = /\[([A-Za-z0-9_-]+)\]/g;
 
+function scrollToChunk(chunkId: string) {
+  const el = document.getElementById(`chunk-${chunkId}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("ring-2", "ring-primary");
+  window.setTimeout(() => {
+    el.classList.remove("ring-2", "ring-primary");
+  }, 1500);
+}
+
 /** Renders answer text, turning [CHUNK_xxx]-style citations into hover popovers (Skill 38D). */
 export function CitationText({
   text,
@@ -38,8 +48,15 @@ export function CitationText({
 
     parts.push(
       <Tooltip key={key++}>
-        <TooltipTrigger className="inline-flex align-baseline outline-none">
-          <Badge variant="secondary" className="text-[10px] px-1 py-0 mx-0.5 cursor-help">
+        <TooltipTrigger
+          className="inline-flex align-baseline outline-none"
+          onClick={() => scrollToChunk(match![1])}
+          aria-label={`Jump to source chunk ${match[1]}`}
+        >
+          <Badge
+            variant="secondary"
+            className="text-[10px] px-1 py-0 mx-0.5 cursor-pointer hover:bg-primary/20"
+          >
             {match[1]}
           </Badge>
         </TooltipTrigger>

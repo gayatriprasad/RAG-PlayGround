@@ -133,7 +133,7 @@ def _paired_continuous_test(
 
     if np.allclose(diffs, 0):
         # Degenerate distribution guard — scipy's wilcoxon/ttest_rel raise/NaN on all-zero diffs.
-        return 1.0, 0.0, cfg.continuous_test
+        return 1.0, 0.0, "none"
 
     if cfg.continuous_test == "paired_t":
         _, p_value = stats.ttest_rel(a_vals, b_vals)

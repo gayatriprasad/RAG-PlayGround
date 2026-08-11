@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Loader2, Sparkles, Zap, Lightbulb, AlertCircle, RefreshCw } from "lucide-react";
+import { Send, Loader2, Sparkles, Zap, Lightbulb, AlertCircle, RefreshCw, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -59,6 +59,19 @@ interface ChunkEstimate {
   approximate: boolean;
 }
 
+interface ConfigSnapshot {
+  indexBackend: string;
+  pipelineOverride: string;
+  topK: number;
+  chunkStrategy: string;
+  llmModel: string;
+  intentMode: string;
+  reranker: string;
+  llmProvider: string;
+  chunkTokens: number;
+  overlap: number;
+}
+
 export default function PlaygroundPage() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -89,6 +102,55 @@ export default function PlaygroundPage() {
   // Live chunk-count preview (Skill 39E)
   const [chunkEstimate, setChunkEstimate] = useState<ChunkEstimate | null>(null);
   const [estimateError, setEstimateError] = useState<string | null>(null);
+
+  // Config history — last 10 distinct configs used, with undo (Skill 36)
+  const [configHistory, setConfigHistory] = useState<ConfigSnapshot[]>([]);
+
+  function currentConfigSnapshot(): ConfigSnapshot {
+    return {
+      indexBackend,
+      pipelineOverride,
+      topK,
+      chunkStrategy,
+      llmModel,
+      intentMode,
+      reranker,
+      llmProvider,
+      chunkTokens,
+      overlap,
+    };
+  }
+
+  function applyConfigSnapshot(snap: ConfigSnapshot) {
+    setIndexBackend(snap.indexBackend);
+    setPipelineOverride(snap.pipelineOverride);
+    setTopK(snap.topK);
+    setChunkStrategy(snap.chunkStrategy);
+    setLlmModel(snap.llmModel);
+    setIntentMode(snap.intentMode);
+    setReranker(snap.reranker);
+    setLlmProvider(snap.llmProvider);
+    setChunkTokens(snap.chunkTokens);
+    setOverlap(snap.overlap);
+  }
+
+  function recordConfigHistory() {
+    const snap = currentConfigSnapshot();
+    setConfigHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && JSON.stringify(last) === JSON.stringify(snap)) return prev;
+      return [...prev, snap].slice(-10);
+    });
+  }
+
+  function undoLastConfig() {
+    setConfigHistory((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.slice(0, -1);
+      applyConfigSnapshot(prev[prev.length - 1]);
+      return next;
+    });
+  }
 
   const sampleQuestions = [
     { text: "What hashing algorithm does the auth service use for passwords?", category: "confluence" },
@@ -143,6 +205,7 @@ export default function PlaygroundPage() {
 
   async function handleSubmit() {
     if (!query.trim()) return;
+    recordConfigHistory();
     setLoading(true);
     setError(null);
     setResult(null);
@@ -253,13 +316,24 @@ export default function PlaygroundPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="h-14 flex items-center px-6 border-b border-border shrink-0">
+      <header className="h-14 flex items-center justify-between px-6 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold tracking-tight">Playground</h1>
+        {configHistory.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={undoLastConfig}
+            aria-label="Undo last config change"
+            title="Revert to the previous config used"
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Undo config ({configHistory.length})
+          </Button>
+        )}
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left Panel — Config */}
-        <aside className="w-[300px] border-r border-border p-5 overflow-y-auto space-y-6 shrink-0">
+        <aside className="w-full md:w-[300px] max-h-[45vh] md:max-h-none border-b md:border-b-0 md:border-r border-border p-5 overflow-y-auto space-y-6 shrink-0">
           <div className="space-y-3">
             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Preset
@@ -475,6 +549,7 @@ export default function PlaygroundPage() {
                   onClick={handleSubmit}
                   disabled={loading || !query.trim()}
                   className="h-auto px-4"
+                  aria-label="Submit query"
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

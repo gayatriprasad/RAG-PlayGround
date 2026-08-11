@@ -10,6 +10,8 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { apiPost } from "@/lib/api";
+import { toFriendlyError } from "@/lib/errors";
 
 export default function PromptLabPage() {
   const [strategy, setStrategy] = useState("zero_shot");
@@ -21,6 +23,7 @@ export default function PromptLabPage() {
   const [query, setQuery] = useState("");
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const strategies = [
     { value: "zero_shot", label: "Zero Shot (baseline)" },
@@ -35,30 +38,21 @@ export default function PromptLabPage() {
 
     setRunning(true);
     setResults([]);
+    setError(null);
 
     try {
-      const response = await fetch("/api/prompt-lab/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query,
-          strategy,
-          n_examples: nExamples,
-          n_samples: nSamples,
-          temperature: temperature[0],
-          version,
-          system_prompt: systemPrompt || null,
-        }),
+      const data = await apiPost<any>("/prompt-lab/run", {
+        query,
+        strategy,
+        n_examples: nExamples,
+        n_samples: nSamples,
+        temperature: temperature[0],
+        version,
+        system_prompt: systemPrompt || null,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setResults([data]);
-      } else {
-        console.error("Prompt lab run failed:", await response.text());
-      }
-    } catch (error) {
-      console.error("Error running prompt lab:", error);
+      setResults([data]);
+    } catch (e) {
+      setError(toFriendlyError(e).description);
     } finally {
       setRunning(false);
     }
@@ -67,30 +61,21 @@ export default function PromptLabPage() {
   const runBenchmark = async () => {
     setRunning(true);
     setResults([]);
+    setError(null);
 
     try {
-      const response = await fetch("/api/prompt-lab/benchmark", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          strategy,
-          n_examples: nExamples,
-          n_samples: nSamples,
-          temperature: temperature[0],
-          version,
-          system_prompt: systemPrompt || null,
-          max_questions: 20,
-        }),
+      const data = await apiPost<any>("/prompt-lab/benchmark", {
+        strategy,
+        n_examples: nExamples,
+        n_samples: nSamples,
+        temperature: temperature[0],
+        version,
+        system_prompt: systemPrompt || null,
+        max_questions: 20,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setResults(data.results || []);
-      } else {
-        console.error("Benchmark failed:", await response.text());
-      }
-    } catch (error) {
-      console.error("Error running benchmark:", error);
+      setResults(data.results || []);
+    } catch (e) {
+      setError(toFriendlyError(e).description);
     } finally {
       setRunning(false);
     }
@@ -226,14 +211,15 @@ export default function PromptLabPage() {
                 <Button onClick={runSingleQuery} disabled={running || !query} className="w-full">
                   {running ? "Running..." : "Run Query"}
                 </Button>
+                {error && <p className="text-sm text-destructive">{error}</p>}
 
                 {results.length > 0 && results[0].answer && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">Answer</CardTitle>
                       <div className="flex gap-2 text-sm">
-                        <Badge variant="outline">{results[0].latency_ms}ms</Badge>
-                        <Badge variant="outline">${results[0].cost_usd?.toFixed(4)}</Badge>
+                        <Badge variant="outline">{Math.round(results[0].latency_ms)}ms</Badge>
+                        <Badge variant="outline">{results[0].n_chunks} chunks</Badge>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -250,6 +236,7 @@ export default function PromptLabPage() {
                 <Button onClick={runBenchmark} disabled={running} className="w-full">
                   {running ? "Running..." : "Run Benchmark"}
                 </Button>
+                {error && <p className="text-sm text-destructive">{error}</p>}
 
                 {results.length > 0 && !results[0].answer && (
                   <Card>
@@ -269,10 +256,6 @@ export default function PromptLabPage() {
                         <div className="flex justify-between">
                           <span className="font-medium">Avg Latency:</span>
                           <span>{(results.reduce((s, r) => s + r.latency_ms, 0) / results.length).toFixed(0)}ms</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Total Cost:</span>
-                          <span>${results.reduce((s, r) => s + (r.cost_usd || 0), 0).toFixed(4)}</span>
                         </div>
                       </div>
 
