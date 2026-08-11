@@ -133,6 +133,7 @@ class ChromaIndex(BaseIndex):
                 f"Collection {experiment_name} has {existing_count} chunks but expected {len(chunks)}, rebuilding"
             )
             self.client.delete_collection(experiment_name)
+            self.collection = None  # invalidate stale handle before refetch
             collection = self._get_or_create_collection(experiment_name)
         
         logger.info(f"Building index for {len(chunks)} chunks...")

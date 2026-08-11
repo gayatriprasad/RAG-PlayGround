@@ -18,11 +18,11 @@ retrieve:
 
 intent:
   mode: "hybrid"
-  llm_model: "llama3"
+  llm_model: "llama3.2:1b"
 
 llm:
   provider: "ollama"
-  model: "llama3"
+  model: "llama3.2:1b"
   ollama_base_url: "http://localhost:11434/v1"
 
 golden:

@@ -6,4 +6,4 @@ top_k: 5
 reranker: "none"
 intent_mode: "rule"
 llm_provider: "ollama"
-llm_model: "llama3"
+llm_model: "llama3.2:1b"

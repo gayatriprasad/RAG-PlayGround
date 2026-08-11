@@ -6,4 +6,4 @@ top_k: 10
 reranker: "cross_encoder"
 intent_mode: "hybrid"
 llm_provider: "ollama"
-llm_model: "llama3"
+llm_model: "llama3.2:1b"

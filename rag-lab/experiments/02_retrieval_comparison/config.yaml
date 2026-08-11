@@ -13,7 +13,7 @@ retrieve:
   similarity_threshold: 0.0
   rerank: false
   reranker: "none"
-  reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  reranker_model: "ms-marco-MiniLM-L-12-v2"
   confidence_threshold: 0.35
   use_cache: true
   cache_ttl_seconds: 3600
@@ -32,7 +32,7 @@ index:
 
 intent:
   mode: "hybrid"
-  llm_model: "llama3"
+  llm_model: "llama3.2:1b"
   simple_threshold: 0.8
   max_sub_queries: 4
 
@@ -48,7 +48,7 @@ confidence:
   fallback_message: "INSUFFICIENT EVIDENCE: confidence too low to answer reliably."
 
 llm:
-  model: "llama3"
+  model: "llama3.2:1b"
   temperature: 0.0
   max_tokens: 512
   provider: "ollama"
