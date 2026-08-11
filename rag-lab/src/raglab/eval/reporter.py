@@ -58,9 +58,16 @@ class ExperimentReporter:
         correct = df['answer_correct'].sum() if 'answer_correct' in df.columns else 0
         mean_score = df['overall_score'].mean() if 'overall_score' in df.columns else 0
         
+        accuracy = (correct / total * 100) if total > 0 else 0.0
+
         print(f"\nTotal questions: {total}")
-        print(f"Correct answers: {correct}/{total} ({correct/total*100:.1f}%)")
+        print(f"Correct answers: {correct}/{total} ({accuracy:.1f}%)")
         print(f"Mean overall score: {mean_score:.3f}")
+
+        if total == 0:
+            print("\nNo results to summarize (all questions may have been skipped by resume).")
+            print("\n" + "=" * 70)
+            return
         
         # Pivot: source_type × pipeline
         if 'source_type' in df.columns and 'pipeline' in df.columns:
@@ -149,7 +156,8 @@ class ExperimentReporter:
         lines.append(f"| Metric | Value |")
         lines.append(f"|--------|-------|")
         lines.append(f"| Total questions | {total} |")
-        lines.append(f"| Correct answers | {correct}/{total} ({correct/total*100:.1f}%) |")
+        accuracy = (correct / total * 100) if total > 0 else 0.0
+        lines.append(f"| Correct answers | {correct}/{total} ({accuracy:.1f}%) |")
         lines.append(f"| Mean overall score | {mean_score:.3f} |")
         lines.append("")
         
@@ -185,17 +193,21 @@ class ExperimentReporter:
         # Top 5 questions
         lines.append("## Top 5 Questions (Highest Score)")
         lines.append("")
-        if 'overall_score' in df.columns:
+        if len(df) > 0 and 'overall_score' in df.columns:
             top5 = df.nlargest(5, 'overall_score')[['question_id', 'overall_score', 'pipeline', 'category']]
             lines.append(top5.to_markdown(index=False, floatfmt=".3f"))
+        else:
+            lines.append("*No rows available*")
         lines.append("")
         
         # Bottom 5 questions
         lines.append("## Bottom 5 Questions (Lowest Score)")
         lines.append("")
-        if 'overall_score' in df.columns:
+        if len(df) > 0 and 'overall_score' in df.columns:
             bottom5 = df.nsmallest(5, 'overall_score')[['question_id', 'overall_score', 'pipeline', 'category']]
             lines.append(bottom5.to_markdown(index=False, floatfmt=".3f"))
+        else:
+            lines.append("*No rows available*")
         lines.append("")
         
         # Config snapshot
