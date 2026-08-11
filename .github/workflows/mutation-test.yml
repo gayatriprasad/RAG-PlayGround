@@ -1,0 +1,28 @@
+name: Mutation Test
+
+# workflow_dispatch only — mutation testing is slow by design and must not block every commit.
+# Run on demand from Actions tab or via gh workflow run.
+on:
+  workflow_dispatch:
+
+jobs:
+  mutmut:
+    name: Mutation test (scoped to config/db/index)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dev dependencies (includes mutmut)
+        run: pip install -e rag-lab/[dev]
+
+      - name: Run mutation testing
+        run: make mutation-test
+
+      - name: Print results
+        if: always()
+        run: cd rag-lab && mutmut results

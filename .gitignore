@@ -55,3 +55,8 @@ diskcache/
 IMPLEMENTATION_STATUS.md
 .github/Copilot_Instructions_NextPhase.md
 .github/Copilot_Skills_NextPhase.md
+
+# Coverage and mutation-testing artifacts (Skill 63)
+.coverage
+rag-lab/.coverage
+rag-lab/mutants/

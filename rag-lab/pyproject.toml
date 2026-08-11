@@ -106,6 +106,7 @@ dev = [
   "ruff",
   "mypy",
   "pre-commit",
+  "mutmut>=3.0",
 ]
 
 # Everything
@@ -159,3 +160,23 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Baseline measured 2026-08-11: raglab 39%, floor 37% (−2 margin).
+# pytest-cov 7.x --cov-fail-under exits 0 on failure; CI uses `coverage report --fail-under=37`.
+addopts = "--cov=raglab --cov-report=term-missing"
+markers = [
+  "test_live_registries: marks tests that require live network/Ollama (excluded from fast CI path)",
+]
+
+[tool.mutmut]
+# Scope mutation to the three modules that had real bugs found this session
+source_paths = [
+  "src/raglab/config.py",
+  "src/raglab/db/writer.py",
+  "src/raglab/index/chroma_index.py",
+]
+# Copy siblings that mutated files import from, plus test fixtures
+also_copy = ["src/raglab", "presets", "experiments", "golden"]
+# Exclude live-integration tests from mutation runs; they need Ollama/network
+pytest_add_cli_args = [
+  "-k", "not test_integration_e2e and not test_extended_combinations and not test_live_registries and not test_real_ollama_integration",
+]

@@ -46,7 +46,19 @@ jobs:
       - name: Run test suite (core path + slot regression + unit tests)
         run: |
           cd rag-lab
-          python -m pytest tests/ -q -k "not test_integration_e2e and not test_extended_combinations" --tb=short
+          # Baseline measured 2026-08-11: raglab 39%, floor set to 37% (margin -2)
+          # Two-step pattern: pytest-cov 7.x --cov-fail-under exits 0 even on failure;
+          # `coverage report --fail-under` is the reliable gate.
+          python -m pytest tests/ -q -k "not test_integration_e2e and not test_extended_combinations and not test_live_registries" --tb=short
+          python -m coverage report --fail-under=37
+
+      - name: Run API test suite with coverage
+        run: |
+          # Baseline measured 2026-08-11: api 32%, floor set to 30% (margin -2)
+          # Note: --cov-fail-under on pytest itself is broken in pytest-cov 7.x when combined
+          # with --cov-report=term-missing (prints FAIL but exits 0). Two-step pattern works.
+          PYTHONPATH=rag-lab/src python -m pytest api/tests -q --cov=api --cov-report=term-missing --tb=short
+          python -m coverage report --fail-under=30
 
       - name: Verify regression baseline is initialized (Skill 50I)
         run: |
