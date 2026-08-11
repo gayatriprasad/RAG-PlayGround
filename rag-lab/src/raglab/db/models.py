@@ -56,6 +56,7 @@ class EvalResultRow:
     latency_ms: Optional[int] = None
     cost_usd: Optional[float] = None
     source_type: Optional[str] = None  # Denormalized for faster queries
+    is_error: Optional[int] = None  # 0/1, mirrors answer_correct convention
     created_at: Optional[str] = None
 
 
@@ -115,6 +116,7 @@ def eval_result_to_row(result, run_id: str) -> EvalResultRow:
         latency_ms=result.metadata.get("latency_ms"),
         source_type=result.source_type,  # Denormalized for faster queries
         cost_usd=result.metadata.get("cost_usd"),
+        is_error=1 if getattr(result, "generation_failed", False) else 0,
     )
 
 

@@ -62,6 +62,7 @@ class AgenticRAGPipeline:
         # Cache
         self.cache = get_cache(cfg.retrieve)
         
+        self._generation_failed = False
         logger.info(
             f"AgenticRAGPipeline initialized: "
             f"strategy={cfg.agentic.strategy}, "
@@ -83,6 +84,7 @@ class AgenticRAGPipeline:
             EvalResult with pipeline="agentic" and strategy metadata
         """
         strategy = self.cfg.agentic.strategy
+        self._generation_failed = False
         logger.info(f"Running agentic RAG ({strategy}) for question: {question.id}")
         
         match strategy:
@@ -578,6 +580,7 @@ class AgenticRAGPipeline:
             return response.strip()
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
+            self._generation_failed = True
             return f"ERROR: LLM generation failed - {str(e)}"
     
     def _synthesize_answer(
@@ -761,5 +764,6 @@ class AgenticRAGPipeline:
             answer_correct=None,
             completeness=None,
             overall_score=None,
+            generation_failed=self._generation_failed,
             metadata=metadata or {}
         )

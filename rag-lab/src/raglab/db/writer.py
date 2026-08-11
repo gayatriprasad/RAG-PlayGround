@@ -68,6 +68,14 @@ class DBWriter:
         if self.backend == "sqlite":
             cursor = self.pool.cursor()
             cursor.executescript(schema_sql)
+            # Guard migration: add is_error column to existing DBs (DEFAULT 0 = treat as success)
+            try:
+                cursor.execute(
+                    "ALTER TABLE eval_results ADD COLUMN is_error INTEGER DEFAULT 0"
+                )
+                self.pool.commit()
+            except Exception:
+                pass  # column already exists
             self.pool.commit()
             logger.info("SQLite schema initialized")
             
@@ -234,8 +242,8 @@ class DBWriter:
                     INSERT OR REPLACE INTO eval_results 
                     (id, run_id, question_id, pipeline, index_backend, model_id, 
                      prompt_strategy, intent_label, answer_correct, completeness, 
-                     overall_score, latency_ms, cost_usd, source_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     overall_score, latency_ms, cost_usd, source_type, is_error)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         row.id, row.run_id, row.question_id, row.pipeline,
@@ -243,6 +251,7 @@ class DBWriter:
                         row.intent_label, row.answer_correct, row.completeness,
                         row.overall_score, row.latency_ms, row.cost_usd,
                         getattr(row, "source_type", None),
+                        getattr(row, "is_error", 0),
                     ),
                 )
             self.pool.commit()
@@ -256,8 +265,8 @@ class DBWriter:
                             INSERT INTO eval_results 
                             (id, run_id, question_id, pipeline, index_backend, model_id, 
                              prompt_strategy, intent_label, answer_correct, completeness, 
-                             overall_score, latency_ms, cost_usd, source_type)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             overall_score, latency_ms, cost_usd, source_type, is_error)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON CONFLICT (run_id, question_id) 
                             DO UPDATE SET
                                 pipeline = EXCLUDED.pipeline,
@@ -270,7 +279,8 @@ class DBWriter:
                                 overall_score = EXCLUDED.overall_score,
                                 latency_ms = EXCLUDED.latency_ms,
                                 cost_usd = EXCLUDED.cost_usd,
-                                source_type = EXCLUDED.source_type
+                                source_type = EXCLUDED.source_type,
+                                is_error = EXCLUDED.is_error
                             """,
                             (
                                 row.id, row.run_id, row.question_id, row.pipeline,
@@ -278,6 +288,7 @@ class DBWriter:
                                 row.intent_label, row.answer_correct, row.completeness,
                                 row.overall_score, row.latency_ms, row.cost_usd,
                                 getattr(row, "source_type", None),
+                                getattr(row, "is_error", 0),
                             ),
                         )
                 conn.commit()
@@ -304,7 +315,7 @@ class DBWriter:
         if self.backend == "sqlite":
             cursor = self.pool.cursor()
             cursor.execute(
-                "SELECT question_id FROM eval_results WHERE run_id = ?",
+                "SELECT question_id FROM eval_results WHERE run_id = ? AND (is_error IS NULL OR is_error = 0)",
                 (run_id,),
             )
             return {row[0] for row in cursor.fetchall()}
@@ -312,7 +323,7 @@ class DBWriter:
             with self.pool.connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT question_id FROM eval_results WHERE run_id = %s",
+                        "SELECT question_id FROM eval_results WHERE run_id = %s AND (is_error IS NULL OR is_error = 0)",
                         (run_id,),
                     )
                     return {row[0] for row in cur.fetchall()}

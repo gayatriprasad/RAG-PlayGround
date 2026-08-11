@@ -73,6 +73,7 @@ class NaiveRAGPipeline:
         # Cache
         self.cache = get_cache(cfg.retrieve)
         
+        self._generation_failed = False
         logger.info(
             f"NaiveRAGPipeline initialized: "
             f"index={type(index).__name__}, "
@@ -92,6 +93,7 @@ class NaiveRAGPipeline:
         Returns:
             EvalResult with predicted answer and metadata
         """
+        self._generation_failed = False
         logger.info(f"Running naive RAG for question: {question.id}")
         tracer = RetrievalTracer(query_id=question.id, query=question.text)
         tracer.set_pipeline("naive")
@@ -333,6 +335,7 @@ class NaiveRAGPipeline:
             
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
+            self._generation_failed = True
             return f"ERROR: LLM generation failed - {str(e)}"
     
     def _build_eval_result(
@@ -367,5 +370,6 @@ class NaiveRAGPipeline:
             retrieved_chunks=retrieved_chunks,
             answer_correct=None,  # Will be filled by eval scorer
             completeness=None,    # Will be filled by eval scorer
-            overall_score=None    # Will be filled by eval scorer
+            overall_score=None,   # Will be filled by eval scorer
+            generation_failed=self._generation_failed,
         )

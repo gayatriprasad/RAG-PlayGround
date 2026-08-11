@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS eval_results (
     latency_ms      INTEGER,
     cost_usd        REAL,
     source_type     TEXT,  -- Denormalized for faster queries
+    is_error        INTEGER DEFAULT 0,  -- 1 when LLM call itself raised; eligible for retry
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(run_id, question_id)  -- prevent duplicate results for same question in run
 );

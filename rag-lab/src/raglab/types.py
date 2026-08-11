@@ -68,6 +68,7 @@ class EvalResult(BaseModel):
     answer_correct: Optional[bool] = None
     completeness: Optional[float] = None
     overall_score: Optional[float] = None
+    generation_failed: bool = False  # True only when the LLM call itself raised
     metadata: Dict[str, Any] = {}
 
 
