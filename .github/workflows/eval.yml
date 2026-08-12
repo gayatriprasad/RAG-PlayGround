@@ -40,7 +40,7 @@ jobs:
         run: pip install -e rag-lab/
 
       - name: Download corpus artifact (if available)
-        uses: dawidd6/action-download-artifact@v3
+        uses: dawidd6/action-download-artifact@v21
         with:
           name: corpus-slice-*
           path: rag-lab/corpus/raw/
