@@ -99,7 +99,7 @@ parsing = [
 
 # Dev tools
 dev = [
-  "pytest>=7.0",
+  "pytest>=9.1.1",
   "pytest-asyncio",
   "pytest-cov",
   "respx",
