@@ -5,7 +5,7 @@ description = "NeuralBench — RAG research platform"
 requires-python = ">=3.11"
 dependencies = [
   "pyyaml",
-  "pydantic>=2",
+  "pydantic>=2.13.4",
   "tqdm",
   "psutil",
   "numpy",
